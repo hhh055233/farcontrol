@@ -83,6 +83,67 @@ Deno.serve(async (req: Request) => {
       return reply(201, data);
     }
 
+    if (body.action === "create_pairing_code") {
+      const childId = cleanText(body.childId, 64);
+      const deviceLabel = cleanText(body.deviceLabel, 80) || "מכשיר Android";
+      if (!/^[0-9a-f-]{36}$/i.test(childId)) return reply(400, { error: "invalid_request" });
+
+      const { data: memberships, error: membershipError } = await admin
+        .from("family_members")
+        .select("id,family_id")
+        .eq("auth_user_id", user.id)
+        .eq("role", "parent")
+        .eq("is_active", true);
+      if (membershipError) throw membershipError;
+      const parent = (memberships ?? []).find((m) => m.family_id);
+      if (!parent) return reply(403, { error: "parent_family_required" });
+
+      const { data: child, error: childError } = await admin
+        .from("child_profiles")
+        .select("id,family_id")
+        .eq("id", childId)
+        .eq("family_id", parent.family_id)
+        .maybeSingle();
+      if (childError) throw childError;
+      if (!child) return reply(404, { error: "child_not_found" });
+
+      const { data: recent, error: recentError } = await admin
+        .from("pairing_codes")
+        .select("id")
+        .eq("child_profile_id", childId)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .limit(1);
+      if (recentError) throw recentError;
+      if (recent?.length) return reply(409, { error: "active_pairing_code_exists" });
+
+      const random = new Uint32Array(2);
+      crypto.getRandomValues(random);
+      const code = String((BigInt(random[0]) * 4294967296n + BigInt(random[1])) % 100000000n).padStart(8, "0");
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
+      const codeHash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
+      const { error: insertError } = await admin.from("pairing_codes").insert({
+        family_id: parent.family_id,
+        child_profile_id: childId,
+        code_hash: codeHash,
+        expires_at: expiresAt,
+        created_by_member_id: parent.id,
+      });
+      if (insertError) throw insertError;
+
+      const { error: auditError } = await admin.from("audit_events").insert({
+        family_id: parent.family_id,
+        actor_member_id: parent.id,
+        subject_child_id: childId,
+        event_type: "device.pairing_code_created",
+        details: { deviceLabel, expiresAt },
+      });
+      if (auditError) throw auditError;
+      return reply(201, { code, expiresAt, childId });
+    }
+
     if (body.action === "overview") {
       const { data: memberships, error: memberError } = await admin
         .from("family_members")
