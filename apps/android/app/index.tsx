@@ -147,9 +147,9 @@ export default function Home() {
 
           <View style={s.hero}>
             <Text style={s.eyebrow}>ניהול משפחתי חכם</Text>
-            <Text style={s.title}>{userEmail ? "המשפחה שלכם" : "מתחילים ביחד"}</Text>
+            <Text style={s.title}>{userEmail ? "המשפחה שלכם" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "child" ? "כניסת ילד" : "כניסת הורה"}</Text>
             <Text style={s.subtitle}>
-              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : "יוצרים חשבון הורה מאובטח כדי להתחיל."}
+              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : entryRole === "choose" ? "בחרו איך להיכנס ל‑Steve Family." : entryRole === "child" ? "כניסה למכשיר ילד לאחר צימוד מאובטח." : "יוצרים חשבון הורה מאובטח או מתחברים לחשבון קיים."}
             </Text>
           </View>
 
@@ -232,6 +232,19 @@ export default function Home() {
                 <Button title="הוספת ילד" onPress={createChild} disabled={busy} busy={busy} />
               </Panel>
               <Panel>
+                <Text style={s.sectionTitle}>פעילות אחרונה</Text>
+                {family.activity?.length ? family.activity.map((event) => (
+                  <View key={event.id} style={s.activityRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.activityTitle}>{event.event_type === "family_created" ? "נוצרה משפחה" : event.event_type === "child_created" ? "נוצר פרופיל ילד" : event.event_type.replaceAll("_", " ")}</Text>
+                      <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
+                    </View>
+                    <View style={s.activityDot} />
+                  </View>
+                )) : <Text style={s.body}>עדיין אין אירועי פעילות להצגה. אירועים חדשים יופיעו כאן כאשר פעולות נתמכות יתועדו בשרת.</Text>}
+                <Text style={s.small}>היומן מציג אירועים שהאפליקציה מתעדת, ולא תוכן פרטי מתוך אפליקציות אחרות.</Text>
+              </Panel>
+              <Panel>
                 <Text style={s.sectionTitle}>השלבים הבאים</Text>
                 <Text style={s.body}>• הזמנת הורה נוסף בהרשאות שוות</Text>
                 <Text style={s.body}>• צימוד מאובטח של מכשיר הילד</Text>
@@ -293,6 +306,9 @@ const s = StyleSheet.create({
   roleArrow: { color: C.blue, fontSize: 25, fontWeight: "900" },
   notice: { backgroundColor: "#302A1B", borderColor: "#6A5630", borderWidth: 1, borderRadius: 12, padding: 12 },
   noticeText: { color: C.amber, fontSize: 12, lineHeight: 19, textAlign: "right" },
+  activityRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
+  activityTitle: { color: C.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
+  activityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.mint },
   message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 12 },
   messageText: { color: C.text, fontSize: 12, lineHeight: 19, textAlign: "right" },
   signOut: { padding: 14, alignItems: "center" }, signOutText: { color: C.red, fontSize: 12, fontWeight: "800" },
