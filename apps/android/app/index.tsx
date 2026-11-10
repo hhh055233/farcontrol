@@ -1,124 +1,292 @@
-import { useState } from "react";
-import { SafeAreaView, ScrollView, View, Text, Pressable, TextInput, StyleSheet, Switch } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  Pressable,
+  View,
+} from "react-native";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
-type Role = "parent" | "child";
-const C = { bg: "#080D1B", panel: "#111A2D", panel2: "#17233A", line: "#263550", text: "#F4F7FF", muted: "#91A0BA", blue: "#6C8CFF", mint: "#5ED6B0", amber: "#F5C36A" };
+type Mode = "signin" | "signup";
+
+const C = {
+  bg: "#080D1B",
+  panel: "#111A2D",
+  panel2: "#17233A",
+  line: "#263550",
+  text: "#F4F7FF",
+  muted: "#91A0BA",
+  blue: "#6C8CFF",
+  mint: "#5ED6B0",
+  amber: "#F5C36A",
+};
 
 export default function Home() {
-  const [role, setRole] = useState<Role>("parent");
-  const [familyName, setFamilyName] = useState("");
-  const [showInfo, setShowInfo] = useState(false);
-  const [bedtime, setBedtime] = useState(true);
+  const [mode, setMode] = useState<Mode>("signup");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const client = supabase;
+    let alive = true;
+    client.auth.getSession().then(({ data, error }) => {
+      if (alive && !error) setUserEmail(data.session?.user.email ?? null);
+    });
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      if (alive) setUserEmail(session?.user.email ?? null);
+    });
+    return () => {
+      alive = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  async function submitAuth() {
+    const client = supabase;
+    if (!client) {
+      setMessage("החיבור לשרת עדיין לא הוגדר. לא נשלח מידע.");
+      return;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setMessage("נא להזין כתובת אימייל תקינה.");
+      return;
+    }
+    if (password.length < 8) {
+      setMessage("הסיסמה חייבת להכיל לפחות 8 תווים.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      if (mode === "signup") {
+        const { data, error } = await client.auth.signUp({
+          email: cleanEmail,
+          password,
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setMessage("נשלח אימייל אישור. יש לאשר את הכתובת ואז להתחבר.");
+        } else {
+          setMessage("החשבון נוצר ואומת. שלב הקמת המשפחה עדיין בפיתוח.");
+        }
+      } else {
+        const { error } = await client.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (error) throw error;
+        setMessage("התחברת בהצלחה. מסך המשפחה יתווסף לאחר הפעלת השרת.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "הפעולה נכשלה. נסו שוב.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    setBusy(true);
+    const { error } = await supabase.auth.signOut();
+    setMessage(error ? error.message : "התנתקת מהחשבון.");
+    setBusy(false);
+  }
 
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.container}>
-        <View style={s.top}>
-          <View style={s.logo}><Text style={s.logoText}>S</Text></View>
-          <View style={{ flex: 1 }}><Text style={s.brand}>steve<Text style={{ color: C.blue }}>family</Text></Text><Text style={s.tag}>מרחב משפחתי בטוח</Text></View>
-          <View style={s.status}><View style={s.dot} /><Text style={s.statusText}>Android</Text></View>
-        </View>
-
-        <View style={s.hero}>
-          <Text style={s.eyebrow}>ניהול משפחתי חכם ושקוף</Text>
-          <Text style={s.title}>שלום, ברוכים הבאים</Text>
-          <Text style={s.subtitle}>מקום אחד להורים ולילדים, עם כללים ברורים ושיתוף פעולה.</Text>
-        </View>
-
-        <View style={s.roleSwitch}>
-          <Pressable onPress={() => setRole("parent")} style={[s.roleButton, role === "parent" && s.roleActive]}><Text style={[s.roleText, role === "parent" && s.roleTextActive]}>אזור הורים</Text></Pressable>
-          <Pressable onPress={() => setRole("child")} style={[s.roleButton, role === "child" && s.roleActive]}><Text style={[s.roleText, role === "child" && s.roleTextActive]}>אזור ילד/ה</Text></Pressable>
-        </View>
-
-        {role === "parent" ? (
-          <>
-            <View style={s.sectionHead}><Text style={s.h2}>הקמת המרחב המשפחתי</Text><Text style={s.small}>שלב ראשון · חשבון משפחה</Text></View>
-            <View style={s.card}>
-              <Text style={s.label}>שם המשפחה או המרחב</Text>
-              <TextInput value={familyName} onChangeText={setFamilyName} placeholder="לדוגמה: משפחת כהן" placeholderTextColor="#697995" style={s.input} />
-              <Text style={s.help}>בהמשך ניתן להזמין הורה נוסף עם אותן הרשאות ניהול.</Text>
-              <Pressable style={s.primary} onPress={() => setShowInfo(true)}><Text style={s.primaryText}>המשך להגדרת המשפחה</Text></Pressable>
+      <KeyboardAvoidingView
+        style={s.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+          <View style={s.top}>
+            <View style={s.logo}><Text style={s.logoText}>S</Text></View>
+            <View style={s.brandBlock}>
+              <Text style={s.brand}>steve<Text style={s.brandAccent}>family</Text></Text>
+              <Text style={s.tag}>מרחב משפחתי בטוח ושקוף</Text>
             </View>
-            <View style={s.sectionHead}><Text style={s.h2}>מה יהיה אפשר לנהל?</Text></View>
-            <View style={s.feature}><Text style={s.featureIcon}>◷</Text><View style={s.featureBody}><Text style={s.featureTitle}>זמן מסך ולוחות זמנים</Text><Text style={s.featureDesc}>כללים ברורים לפי ימים ושעות, בכפוף ליכולות Android.</Text></View></View>
-            <View style={s.feature}><Text style={s.featureIcon}>✓</Text><View style={s.featureBody}><Text style={s.featureTitle}>בקשות ואישורים</Text><Text style={s.featureDesc}>תהליך שקוף לאישור פעולות והגדרות משפחתיות.</Text></View></View>
-            <View style={s.feature}><Text style={s.featureIcon}>⌖</Text><View style={s.featureBody}><Text style={s.featureTitle}>שיתוף מיקום בהסכמה</Text><Text style={s.featureDesc}>רק בהרשאה מפורשת, ניתנת לביטול ועם חיווי ברור.</Text></View></View>
-            <View style={s.feature}><Text style={s.featureIcon}>▣</Text><View style={s.featureBody}><Text style={s.featureTitle}>חיבור מכשיר Android</Text><Text style={s.featureDesc}>צירוף מאובטח באמצעות קוד חד־פעמי שייווצר בשרת.</Text></View></View>
-          </>
-        ) : (
-          <>
-            <View style={s.sectionHead}><Text style={s.h2}>הצטרפות למרחב המשפחתי</Text><Text style={s.small}>המכשיר נשאר בשליטת המשתמש</Text></View>
-            <View style={s.card}>
-              <Text style={s.label}>קוד הצירוף שקיבלת מההורה</Text>
-              <TextInput keyboardType="number-pad" maxLength={8} placeholder="הקלדת קוד" placeholderTextColor="#697995" style={[s.input, { textAlign: "center", letterSpacing: 8, fontSize: 20 }]} />
-              <Text style={s.help}>לפני חיבור אמיתי יוצגו שם המשפחה, ההרשאות והנתונים שישותפו.</Text>
-              <Pressable style={s.primary} onPress={() => setShowInfo(true)}><Text style={s.primaryText}>בדיקת קוד והצגת פרטים</Text></Pressable>
-            </View>
-            <View style={s.notice}><Text style={s.noticeTitle}>חשוב לדעת</Text><Text style={s.noticeText}>אין כאן מעקב נסתר. כל שיתוף מידע והרשאה יוצגו בצורה ברורה וניתן יהיה לבדוק אותם.</Text></View>
-          </>
-        )}
-
-        <View style={s.demo}><Text style={s.demoTitle}>אב־טיפוס בפיתוח</Text><Text style={s.demoText}>המסכים עובדים מקומית בלבד. חשבונות, קודי צירוף, סנכרון והגבלות מכשיר עדיין לא מחוברים לשרת.</Text></View>
-        <View style={s.footer}><Text style={s.footerText}>STEVE FAMILY · ANDROID FIRST</Text></View>
-      </ScrollView>
-
-      {showInfo && (
-        <View style={s.overlay}>
-          <View style={s.dialog}>
-            <Text style={s.dialogTitle}>השלב הבא עדיין בפיתוח</Text>
-            <Text style={s.dialogText}>המסך הזה הוא אב־טיפוס בלבד. לא נוצר חשבון ולא נשלח קוד לשרת. החיבור האמיתי יתווסף אחרי הקמת אימות משתמשים ושרת מאובטח.</Text>
-            <Pressable style={s.primary} onPress={() => setShowInfo(false)}><Text style={s.primaryText}>הבנתי</Text></Pressable>
+            <View style={s.platform}><View style={s.dot} /><Text style={s.platformText}>ANDROID</Text></View>
           </View>
-        </View>
-      )}
+
+          <View style={s.hero}>
+            <Text style={s.eyebrow}>ניהול משפחתי חכם</Text>
+            <Text style={s.title}>{userEmail ? "החשבון מחובר" : "מתחילים ביחד"}</Text>
+            <Text style={s.subtitle}>
+              {userEmail
+                ? "אימות המשתמש פעיל. הקמת המשפחה והזמנת ההורה השני יופעלו אחרי חיבור השרת."
+                : "חשבון הורה מאובטח הוא הצעד הראשון להקמת המרחב המשפחתי."}
+            </Text>
+          </View>
+
+          {!isSupabaseConfigured ? (
+            <View style={s.warning}>
+              <Text style={s.warningTitle}>השרת עדיין לא הוגדר</Text>
+              <Text style={s.warningText}>
+                לא ניתן ליצור חשבון כרגע. פרויקט Supabase שנמצא בחשבון מסומן כלא פעיל,
+                ולכן לא נשלחת בקשה ולא מוצגים נתונים מדומים.
+              </Text>
+            </View>
+          ) : null}
+
+          {userEmail ? (
+            <View style={s.card}>
+              <Text style={s.cardTitle}>מחובר בתור</Text>
+              <Text style={s.emailValue}>{userEmail}</Text>
+              <View style={s.pendingRow}>
+                <View style={s.pendingDot} />
+                <Text style={s.pendingText}>הגדרת המשפחה עדיין לא זמינה</Text>
+              </View>
+              <Pressable style={[s.secondaryButton, busy && s.disabled]} onPress={signOut} disabled={busy}>
+                {busy ? <ActivityIndicator color={C.text} /> : <Text style={s.secondaryText}>התנתקות</Text>}
+              </Pressable>
+            </View>
+          ) : (
+            <View style={s.card}>
+              <View style={s.tabs}>
+                <Pressable onPress={() => { setMode("signup"); setMessage(""); }} style={[s.tab, mode === "signup" && s.tabActive]}>
+                  <Text style={[s.tabText, mode === "signup" && s.tabTextActive]}>יצירת חשבון</Text>
+                </Pressable>
+                <Pressable onPress={() => { setMode("signin"); setMessage(""); }} style={[s.tab, mode === "signin" && s.tabActive]}>
+                  <Text style={[s.tabText, mode === "signin" && s.tabTextActive]}>כבר יש חשבון</Text>
+                </Pressable>
+              </View>
+
+              <Text style={s.label}>כתובת אימייל</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="name@example.com"
+                placeholderTextColor="#697995"
+                style={s.input}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="emailAddress"
+              />
+
+              <Text style={[s.label, s.passwordLabel]}>סיסמה</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="לפחות 8 תווים"
+                placeholderTextColor="#697995"
+                style={s.input}
+                secureTextEntry
+                autoCapitalize="none"
+                textContentType={mode === "signup" ? "newPassword" : "password"}
+              />
+
+              <Text style={s.helper}>
+                {mode === "signup"
+                  ? "לאחר ההרשמה ייתכן שתידרש לאשר את כתובת האימייל."
+                  : "התחבר עם פרטי החשבון שכבר יצרת."}
+              </Text>
+
+              <Pressable
+                style={[s.primary, (busy || !isSupabaseConfigured) && s.disabled]}
+                onPress={submitAuth}
+                disabled={busy || !isSupabaseConfigured}
+              >
+                {busy
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={s.primaryText}>{mode === "signup" ? "יצירת חשבון הורה" : "התחברות"}</Text>}
+              </Pressable>
+            </View>
+          )}
+
+          {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
+
+          <View style={s.steps}>
+            <Text style={s.stepsTitle}>מה יתווסף בהמשך</Text>
+            <Step number="01" title="מרחב משפחתי" detail="יצירת משפחה והוספת שני הורים בעלי הרשאות שוות." />
+            <Step number="02" title="פרופיל ילד ומכשיר" detail="קוד צירוף חד־פעמי והסבר ברור על ההרשאות." />
+            <Step number="03" title="סנכרון מאובטח" detail="כללים ודוחות רק אחרי בדיקות Android אמיתיות." />
+          </View>
+
+          <View style={s.footer}>
+            <Text style={s.footerText}>STEVE FAMILY · ANDROID FIRST</Text>
+            <Text style={s.footerSub}>אין מעקב נסתר ואין הגבלות מכשיר פעילות בשלב זה.</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+function Step({ number, title, detail }: { number: string; title: string; detail: string }) {
+  return (
+    <View style={s.step}>
+      <Text style={s.stepNumber}>{number}</Text>
+      <View style={s.stepBody}>
+        <Text style={s.stepTitle}>{title}</Text>
+        <Text style={s.stepDetail}>{detail}</Text>
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
+  flex: { flex: 1 },
   safe: { flex: 1, backgroundColor: C.bg },
   container: { padding: 20, paddingBottom: 42 },
-  top: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 30, marginTop: 8 },
-  logo: { width: 44, height: 44, borderRadius: 15, backgroundColor: C.blue, alignItems: "center", justifyContent: "center" },
-  logoText: { color: "white", fontSize: 24, fontWeight: "900" },
-  brand: { color: C.text, fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
-  tag: { color: C.muted, fontSize: 11, marginTop: 2 },
-  status: { flexDirection: "row", gap: 6, alignItems: "center", borderWidth: 1, borderColor: C.line, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
+  top: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8, marginBottom: 34 },
+  logo: { width: 46, height: 46, borderRadius: 16, backgroundColor: C.blue, alignItems: "center", justifyContent: "center" },
+  logoText: { color: "#FFFFFF", fontSize: 25, fontWeight: "900" },
+  brandBlock: { flex: 1 },
+  brand: { color: C.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
+  brandAccent: { color: C.blue },
+  tag: { color: C.muted, fontSize: 11, marginTop: 3 },
+  platform: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: C.line, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
   dot: { width: 7, height: 7, borderRadius: 5, backgroundColor: C.mint },
-  statusText: { color: C.muted, fontSize: 11 },
-  hero: { marginBottom: 22 },
-  eyebrow: { color: C.mint, fontSize: 12, fontWeight: "700", marginBottom: 9 },
-  title: { color: C.text, fontSize: 28, fontWeight: "900", textAlign: "right" },
+  platformText: { color: C.muted, fontSize: 9, fontWeight: "800", letterSpacing: 1 },
+  hero: { marginBottom: 24, alignItems: "flex-end" },
+  eyebrow: { color: C.mint, fontSize: 12, fontWeight: "800", marginBottom: 9 },
+  title: { color: C.text, fontSize: 29, fontWeight: "900", textAlign: "right" },
   subtitle: { color: C.muted, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 9 },
-  roleSwitch: { flexDirection: "row", backgroundColor: C.panel, borderRadius: 14, padding: 5, marginBottom: 26, borderWidth: 1, borderColor: C.line },
-  roleButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
-  roleActive: { backgroundColor: C.panel2 },
-  roleText: { color: C.muted, fontWeight: "700" },
-  roleTextActive: { color: C.text },
-  sectionHead: { marginBottom: 13, marginTop: 4, alignItems: "flex-end" },
-  h2: { color: C.text, fontSize: 18, fontWeight: "800" },
-  small: { color: C.muted, fontSize: 11, marginTop: 4 },
-  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 18, padding: 17, marginBottom: 24 },
-  label: { color: C.text, fontSize: 13, fontWeight: "700", textAlign: "right", marginBottom: 9 },
-  input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 11, color: C.text, padding: 14, textAlign: "right", fontSize: 14 },
-  help: { color: C.muted, textAlign: "right", fontSize: 11, lineHeight: 18, marginTop: 9, marginBottom: 14 },
-  primary: { backgroundColor: C.blue, paddingVertical: 14, borderRadius: 12, alignItems: "center" },
-  primaryText: { color: "white", fontWeight: "800", fontSize: 14 },
-  feature: { flexDirection: "row-reverse", alignItems: "center", backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 9, gap: 12 },
-  featureIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.panel2, color: C.blue, fontSize: 20, textAlign: "center", textAlignVertical: "center", overflow: "hidden", paddingTop: 6 },
-  featureBody: { flex: 1, alignItems: "flex-end" },
-  featureTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
-  featureDesc: { color: C.muted, fontSize: 11, textAlign: "right", lineHeight: 17, marginTop: 3 },
-  notice: { backgroundColor: "#102A2A", borderColor: "#24504B", borderWidth: 1, padding: 15, borderRadius: 14, marginBottom: 20 },
-  noticeTitle: { color: C.mint, textAlign: "right", fontWeight: "800", marginBottom: 5 },
-  noticeText: { color: "#B6D8D1", textAlign: "right", fontSize: 12, lineHeight: 19 },
-  demo: { borderWidth: 1, borderColor: "#594B2E", backgroundColor: "#251F15", borderRadius: 14, padding: 14, marginTop: 12 },
-  demoTitle: { color: C.amber, textAlign: "right", fontWeight: "800", marginBottom: 5 },
-  demoText: { color: "#D5C6A7", textAlign: "right", fontSize: 11, lineHeight: 18 },
-  footer: { alignItems: "center", marginTop: 26 },
+  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 17, marginBottom: 18 },
+  tabs: { flexDirection: "row", backgroundColor: C.bg, borderRadius: 12, padding: 4, marginBottom: 22 },
+  tab: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: "center" },
+  tabActive: { backgroundColor: C.panel2 },
+  tabText: { color: C.muted, fontSize: 12, fontWeight: "700" },
+  tabTextActive: { color: C.text },
+  label: { color: C.text, fontSize: 13, fontWeight: "700", textAlign: "right", marginBottom: 8 },
+  passwordLabel: { marginTop: 17 },
+  input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 12, color: C.text, padding: 14, fontSize: 14, textAlign: "left" },
+  helper: { color: C.muted, textAlign: "right", fontSize: 11, lineHeight: 18, marginTop: 10, marginBottom: 16 },
+  primary: { backgroundColor: C.blue, paddingVertical: 15, borderRadius: 12, alignItems: "center", minHeight: 50, justifyContent: "center" },
+  primaryText: { color: "#FFFFFF", fontWeight: "900", fontSize: 14 },
+  secondaryButton: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, paddingVertical: 13, borderRadius: 12, alignItems: "center", marginTop: 18 },
+  secondaryText: { color: C.text, fontWeight: "800" },
+  disabled: { opacity: 0.45 },
+  warning: { backgroundColor: "#2A2115", borderColor: "#6B542E", borderWidth: 1, borderRadius: 15, padding: 15, marginBottom: 18 },
+  warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right", marginBottom: 6 },
+  warningText: { color: "#E0D0AE", fontSize: 12, lineHeight: 19, textAlign: "right" },
+  message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 18 },
+  messageText: { color: C.text, fontSize: 12, lineHeight: 19, textAlign: "right" },
+  cardTitle: { color: C.muted, textAlign: "right", fontSize: 12, fontWeight: "700" },
+  emailValue: { color: C.text, fontSize: 16, fontWeight: "800", textAlign: "right", marginTop: 7 },
+  pendingRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginTop: 18 },
+  pendingDot: { width: 8, height: 8, borderRadius: 5, backgroundColor: C.amber },
+  pendingText: { color: C.amber, fontSize: 12 },
+  steps: { marginTop: 12, marginBottom: 16 },
+  stepsTitle: { color: C.text, fontSize: 17, fontWeight: "900", textAlign: "right", marginBottom: 13 },
+  step: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 12, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 13, marginBottom: 9 },
+  stepNumber: { color: C.blue, fontSize: 12, fontWeight: "900", paddingTop: 2 },
+  stepBody: { flex: 1, alignItems: "flex-end" },
+  stepTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
+  stepDetail: { color: C.muted, fontSize: 11, lineHeight: 17, textAlign: "right", marginTop: 3 },
+  footer: { alignItems: "center", marginTop: 20 },
   footerText: { color: "#596783", fontSize: 9, letterSpacing: 2, fontWeight: "800" },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0009", alignItems: "center", justifyContent: "center", padding: 22 },
-  dialog: { width: "100%", backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 20 },
-  dialogTitle: { color: C.text, fontSize: 18, fontWeight: "900", textAlign: "right", marginBottom: 10 },
-  dialogText: { color: C.muted, fontSize: 13, textAlign: "right", lineHeight: 21, marginBottom: 18 }
+  footerSub: { color: "#71809B", fontSize: 10, marginTop: 8, textAlign: "center" },
 });
