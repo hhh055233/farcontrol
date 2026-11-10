@@ -95,17 +95,18 @@ Deno.serve(async (req: Request) => {
         .eq("role", "parent")
         .eq("is_active", true);
       if (membershipError) throw membershipError;
-      const parent = (memberships ?? []).find((m) => m.family_id);
-      if (!parent) return reply(403, { error: "parent_family_required" });
+      if (!memberships?.length) return reply(403, { error: "parent_family_required" });
 
       const { data: child, error: childError } = await admin
         .from("child_profiles")
         .select("id,family_id")
         .eq("id", childId)
-        .eq("family_id", parent.family_id)
+        .in("family_id", memberships.map((m) => m.family_id))
         .maybeSingle();
       if (childError) throw childError;
       if (!child) return reply(404, { error: "child_not_found" });
+      const parent = memberships.find((m) => m.family_id === child.family_id);
+      if (!parent) return reply(403, { error: "parent_family_required" });
 
       const { data: recent, error: recentError } = await admin
         .from("pairing_codes")
