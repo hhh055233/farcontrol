@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Steve Family",
-    "slug": "steve-family",
+    "name": "Steve Control",
+    "slug": "steve-control",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "scheme": "stevefamily",
+    "scheme": "stevecontrol",
     "android": {
       "package": "com.stevefamily.app",
       "versionCode": 1,
