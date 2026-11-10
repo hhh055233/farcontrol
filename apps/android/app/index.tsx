@@ -214,17 +214,17 @@ export default function Home() {
           <View style={s.header}>
             <View style={s.logo}><Text style={s.logoText}>S</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={s.brand}>steve<Text style={{ color: C.blue }}>family</Text></Text>
-              <Text style={s.tag}>מרחב משפחתי בטוח ושקוף</Text>
+              <Text style={s.brand}>Steve<Text style={{ color: C.blue }}> Control</Text></Text>
+              <Text style={s.tag}>שליטה מרחוק גלויה ומאובטחת</Text>
             </View>
             <Text style={s.platform}>ANDROID</Text>
           </View>
 
           <View style={s.hero}>
-            <Text style={s.eyebrow}>ניהול משפחתי חכם</Text>
+            <Text style={s.eyebrow}>שליטה חכמה במכשירים</Text>
             <Text style={s.title}>{userEmail ? "המשפחה שלכם" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "child" ? "כניסת ילד" : "כניסת הורה"}</Text>
             <Text style={s.subtitle}>
-              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : entryRole === "choose" ? "בחרו איך להיכנס ל‑Steve Family." : entryRole === "child" ? "כניסה למכשיר ילד לאחר צימוד מאובטח." : "יוצרים חשבון הורה מאובטח או מתחברים לחשבון קיים."}
+              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : entryRole === "choose" ? "בחרו איך להיכנס ל‑Steve Control." : entryRole === "child" ? "כניסה למכשיר ילד לאחר צימוד מאובטח." : "יוצרים חשבון הורה מאובטח או מתחברים לחשבון קיים."}
             </Text>
           </View>
 
@@ -353,7 +353,7 @@ export default function Home() {
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
           {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
           {!userEmail && entryRole === "parent" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
-          <Text style={s.footer}>STEVE FAMILY · הצגת מידע שקוף בלבד; הגבלות מכשיר יופעלו רק לאחר צימוד והרשאות מתאימות.</Text>
+          <Text style={s.footer}>STEVE CONTROL · הצגת מידע שקוף בלבד; הגבלות מכשיר יופעלו רק לאחר צימוד והרשאות מתאימות.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
