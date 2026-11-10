@@ -32,6 +32,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [loadingOverview, setLoadingOverview] = useState(false);
+  const [pairingCodes, setPairingCodes] = useState<Record<string, { code: string; expiresAt: string }>>({});
 
   const loadOverview = useCallback(async () => {
     if (!supabase) return;
@@ -119,6 +120,27 @@ export default function Home() {
       await loadOverview();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור פרופיל.");
+    } finally { setBusy(false); }
+  }
+
+  async function createPairingCode(childId: string) {
+    if (!supabase) return;
+    setBusy(true); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("family-api", {
+        body: { action: "create_pairing_code", childId, deviceLabel: "מכשיר Android" },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        if (data.error === "active_pairing_code_exists") throw new Error("כבר קיים קוד צימוד פעיל לילד הזה. המתינו עד שיפוג.");
+        if (data.error === "parent_family_required") throw new Error("נדרשת הרשאת הורה במשפחה.");
+        throw new Error("לא הצלחנו ליצור קוד צימוד.");
+      }
+      setPairingCodes((current) => ({ ...current, [childId]: { code: data.code, expiresAt: data.expiresAt } }));
+      setMessage("נוצר קוד צימוד חד־פעמי. הציגו אותו לילד באופן אישי.");
+      await loadOverview();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "יצירת קוד הצימוד נכשלה.");
     } finally { setBusy(false); }
   }
 
@@ -222,6 +244,17 @@ export default function Home() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.childName}>{child.nickname}</Text>
                       <Text style={s.small}>{child.devices.length ? child.devices.length + " מכשירים" : "עדיין לא צורף מכשיר"}</Text>
+                      {pairingCodes[child.id] ? (
+                        <View style={s.pairCode}>
+                          <Text style={s.pairCodeLabel}>קוד צימוד זמני · עד 10 דקות</Text>
+                          <Text selectable style={s.pairCodeValue}>{pairingCodes[child.id].code}</Text>
+                          <Text style={s.small}>תוקף עד {new Date(pairingCodes[child.id].expiresAt).toLocaleTimeString("he-IL")}</Text>
+                        </View>
+                      ) : (
+                        <Pressable style={s.pairButton} onPress={() => createPairingCode(child.id)} disabled={busy}>
+                          <Text style={s.pairButtonText}>יצירת קוד צימוד למכשיר</Text>
+                        </Pressable>
+                      )}
                     </View>
                   </View>
                 ))}
@@ -306,6 +339,11 @@ const s = StyleSheet.create({
   roleArrow: { color: C.blue, fontSize: 25, fontWeight: "900" },
   notice: { backgroundColor: "#302A1B", borderColor: "#6A5630", borderWidth: 1, borderRadius: 12, padding: 12 },
   noticeText: { color: C.amber, fontSize: 12, lineHeight: 19, textAlign: "right" },
+  pairButton: { alignSelf: "flex-end", backgroundColor: "#24365B", borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, marginTop: 8 },
+  pairButtonText: { color: "#B8C8FF", fontSize: 11, fontWeight: "800" },
+  pairCode: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.mint, borderRadius: 11, padding: 10, marginTop: 9, alignItems: "flex-end" },
+  pairCodeLabel: { color: C.mint, fontSize: 10, fontWeight: "800" },
+  pairCodeValue: { color: C.text, fontSize: 25, fontWeight: "900", letterSpacing: 5, marginVertical: 4 },
   activityRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
   activityTitle: { color: C.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
   activityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.mint },
