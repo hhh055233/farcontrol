@@ -1,292 +1,261 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  Pressable,
-  View,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
-type Mode = "signin" | "signup";
+type Mode = "signup" | "signin";
+type Family = {
+  id: string; name: string; status: string;
+  children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string }> }>;
+};
 
 const C = {
-  bg: "#080D1B",
-  panel: "#111A2D",
-  panel2: "#17233A",
-  line: "#263550",
-  text: "#F4F7FF",
-  muted: "#91A0BA",
-  blue: "#6C8CFF",
-  mint: "#5ED6B0",
-  amber: "#F5C36A",
+  bg: "#080D1B", panel: "#111A2D", panel2: "#17233A", line: "#263550",
+  text: "#F4F7FF", muted: "#91A0BA", blue: "#6C8CFF", mint: "#5ED6B0",
+  amber: "#F5C36A", red: "#FF8C8C",
 };
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [familyName, setFamilyName] = useState("");
+  const [childName, setChildName] = useState("");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [families, setFamilies] = useState<Family[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+
+  const loadOverview = useCallback(async () => {
+    if (!supabase) return;
+    setLoadingOverview(true);
+    const { data, error } = await supabase.functions.invoke("family-api", {
+      body: { action: "overview" },
+    });
+    if (!error && data?.families) setFamilies(data.families as Family[]);
+    else if (error) setMessage("לא הצלחנו לטעון את נתוני המשפחה. נסו לרענן.");
+    setLoadingOverview(false);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
-    const client = supabase;
     let alive = true;
-    client.auth.getSession().then(({ data, error }) => {
-      if (alive && !error) setUserEmail(data.session?.user.email ?? null);
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (alive && !error) {
+        setUserEmail(data.session?.user.email ?? null);
+        if (data.session) void loadOverview();
+      }
     });
-    const { data } = client.auth.onAuthStateChange((_event, session) => {
-      if (alive) setUserEmail(session?.user.email ?? null);
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!alive) return;
+      setUserEmail(session?.user.email ?? null);
+      if (session) {
+        setTimeout(() => { if (alive) void loadOverview(); }, 0);
+      } else {
+        setFamilies([]);
+      }
     });
-    return () => {
-      alive = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
+    return () => { alive = false; data.subscription.unsubscribe(); };
+  }, [loadOverview]);
 
   async function submitAuth() {
-    const client = supabase;
-    if (!client) {
-      setMessage("החיבור לשרת עדיין לא הוגדר. לא נשלח מידע.");
-      return;
-    }
+    if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
     const cleanEmail = email.trim().toLowerCase();
-    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setMessage("נא להזין כתובת אימייל תקינה.");
-      return;
-    }
-    if (password.length < 8) {
-      setMessage("הסיסמה חייבת להכיל לפחות 8 תווים.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setMessage("נא להזין אימייל תקין.");
+    if (password.length < 8) return setMessage("הסיסמה חייבת להכיל לפחות 8 תווים.");
+    setBusy(true); setMessage("");
     try {
       if (mode === "signup") {
-        const { data, error } = await client.auth.signUp({
-          email: cleanEmail,
-          password,
-        });
+        const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password });
         if (error) throw error;
-        if (!data.session) {
-          setMessage("נשלח אימייל אישור. יש לאשר את הכתובת ואז להתחבר.");
-        } else {
-          setMessage("החשבון נוצר ואומת. שלב הקמת המשפחה עדיין בפיתוח.");
-        }
+        setMessage(data.session
+          ? "החשבון נוצר. אפשר להקים עכשיו את המשפחה."
+          : "נשלח אימייל אישור. אשרו את הכתובת ואז התחברו.");
       } else {
-        const { error } = await client.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) throw error;
-        setMessage("התחברת בהצלחה. מסך המשפחה יתווסף לאחר הפעלת השרת.");
+        setMessage("התחברתם בהצלחה.");
       }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "הפעולה נכשלה. נסו שוב.");
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "הפעולה נכשלה.");
+    } finally { setBusy(false); }
+  }
+
+  async function createFamily() {
+    if (!supabase) return;
+    if (!familyName.trim() || !displayName.trim()) return setMessage("יש למלא שם משפחה ושם הורה.");
+    setBusy(true); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("family-api", {
+        body: { action: "create_family", name: familyName.trim(), displayName: displayName.trim() },
+      });
+      if (error) throw error;
+      setMessage("המשפחה נוצרה בהצלחה.");
+      await loadOverview();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור משפחה.");
+    } finally { setBusy(false); }
+  }
+
+  async function createChild() {
+    if (!supabase) return;
+    if (!childName.trim()) return setMessage("יש להזין שם לילד.");
+    setBusy(true); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("family-api", {
+        body: { action: "create_child", nickname: childName.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setChildName("");
+      setMessage("פרופיל הילד נוצר. צימוד מכשיר יתווסף בשלב הבא.");
+      await loadOverview();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור פרופיל.");
+    } finally { setBusy(false); }
   }
 
   async function signOut() {
     if (!supabase) return;
     setBusy(true);
     const { error } = await supabase.auth.signOut();
-    setMessage(error ? error.message : "התנתקת מהחשבון.");
+    setMessage(error ? "ההתנתקות נכשלה." : "התנתקתם.");
     setBusy(false);
   }
 
+  const family = families[0];
+
   return (
     <SafeAreaView style={s.safe}>
-      <KeyboardAvoidingView
-        style={s.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-          <View style={s.top}>
+          <View style={s.header}>
             <View style={s.logo}><Text style={s.logoText}>S</Text></View>
-            <View style={s.brandBlock}>
-              <Text style={s.brand}>steve<Text style={s.brandAccent}>family</Text></Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.brand}>steve<Text style={{ color: C.blue }}>family</Text></Text>
               <Text style={s.tag}>מרחב משפחתי בטוח ושקוף</Text>
             </View>
-            <View style={s.platform}><View style={s.dot} /><Text style={s.platformText}>ANDROID</Text></View>
+            <Text style={s.platform}>ANDROID</Text>
           </View>
 
           <View style={s.hero}>
             <Text style={s.eyebrow}>ניהול משפחתי חכם</Text>
-            <Text style={s.title}>{userEmail ? "החשבון מחובר" : "מתחילים ביחד"}</Text>
+            <Text style={s.title}>{userEmail ? "המשפחה שלכם" : "מתחילים ביחד"}</Text>
             <Text style={s.subtitle}>
-              {userEmail
-                ? "אימות המשתמש פעיל. הקמת המשפחה והזמנת ההורה השני יופעלו אחרי חיבור השרת."
-                : "חשבון הורה מאובטח הוא הצעד הראשון להקמת המרחב המשפחתי."}
+              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : "יוצרים חשבון הורה מאובטח כדי להתחיל."}
             </Text>
           </View>
 
           {!isSupabaseConfigured ? (
-            <View style={s.warning}>
-              <Text style={s.warningTitle}>השרת עדיין לא הוגדר</Text>
-              <Text style={s.warningText}>
-                לא ניתן ליצור חשבון כרגע כי פרטי החיבור של Supabase עדיין לא הוגדרו בבניית האפליקציה.
-                לא נשלחת בקשה ולא מוצגים נתונים מדומים.
-              </Text>
-            </View>
+            <Panel>
+              <Text style={s.warningTitle}>נדרשת הגדרת חיבור</Text>
+              <Text style={s.body}>כתובת Supabase והמפתח הציבורי צריכים להיות מוגדרים בבניית האפליקציה. לא נשלחים נתונים כשאין חיבור.</Text>
+            </Panel>
           ) : null}
 
-          {userEmail ? (
-            <View style={s.card}>
-              <Text style={s.cardTitle}>מחובר בתור</Text>
-              <Text style={s.emailValue}>{userEmail}</Text>
-              <View style={s.pendingRow}>
-                <View style={s.pendingDot} />
-                <Text style={s.pendingText}>הגדרת המשפחה עדיין לא זמינה</Text>
-              </View>
-              <Pressable style={[s.secondaryButton, busy && s.disabled]} onPress={signOut} disabled={busy}>
-                {busy ? <ActivityIndicator color={C.text} /> : <Text style={s.secondaryText}>התנתקות</Text>}
-              </Pressable>
-            </View>
-          ) : (
-            <View style={s.card}>
+          {!userEmail ? (
+            <Panel>
               <View style={s.tabs}>
-                <Pressable onPress={() => { setMode("signup"); setMessage(""); }} style={[s.tab, mode === "signup" && s.tabActive]}>
-                  <Text style={[s.tabText, mode === "signup" && s.tabTextActive]}>יצירת חשבון</Text>
-                </Pressable>
-                <Pressable onPress={() => { setMode("signin"); setMessage(""); }} style={[s.tab, mode === "signin" && s.tabActive]}>
-                  <Text style={[s.tabText, mode === "signin" && s.tabTextActive]}>כבר יש חשבון</Text>
-                </Pressable>
+                <Pressable onPress={() => setMode("signup")} style={[s.tab, mode === "signup" && s.activeTab]}><Text style={s.tabText}>יצירת חשבון</Text></Pressable>
+                <Pressable onPress={() => setMode("signin")} style={[s.tab, mode === "signin" && s.activeTab]}><Text style={s.tabText}>התחברות</Text></Pressable>
               </View>
-
-              <Text style={s.label}>כתובת אימייל</Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@example.com"
-                placeholderTextColor="#697995"
-                style={s.input}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                textContentType="emailAddress"
-              />
-
-              <Text style={[s.label, s.passwordLabel]}>סיסמה</Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="לפחות 8 תווים"
-                placeholderTextColor="#697995"
-                style={s.input}
-                secureTextEntry
-                autoCapitalize="none"
-                textContentType={mode === "signup" ? "newPassword" : "password"}
-              />
-
-              <Text style={s.helper}>
-                {mode === "signup"
-                  ? "לאחר ההרשמה ייתכן שתידרש לאשר את כתובת האימייל."
-                  : "התחבר עם פרטי החשבון שכבר יצרת."}
-              </Text>
-
-              <Pressable
-                style={[s.primary, (busy || !isSupabaseConfigured) && s.disabled]}
-                onPress={submitAuth}
-                disabled={busy || !isSupabaseConfigured}
-              >
-                {busy
-                  ? <ActivityIndicator color="#FFFFFF" />
-                  : <Text style={s.primaryText}>{mode === "signup" ? "יצירת חשבון הורה" : "התחברות"}</Text>}
-              </Pressable>
-            </View>
+              <Field label="אימייל" value={email} onChangeText={setEmail} placeholder="name@example.com" />
+              <Field label="סיסמה" value={password} onChangeText={setPassword} placeholder="לפחות 8 תווים" secure />
+              <Button title={mode === "signup" ? "יצירת חשבון הורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
+            </Panel>
+          ) : loadingOverview ? (
+            <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>טוענים את המשפחה...</Text></Panel>
+          ) : !family ? (
+            <Panel>
+              <Text style={s.sectionTitle}>הקמת המשפחה הראשונה</Text>
+              <Field label="שם המשפחה" value={familyName} onChangeText={setFamilyName} placeholder="משפחת ישראלי" />
+              <Field label="השם שיוצג להורה" value={displayName} onChangeText={setDisplayName} placeholder="שם ההורה" />
+              <Button title="יצירת משפחה" onPress={createFamily} disabled={busy} busy={busy} />
+              <Text style={s.small}>המשפחה תיווצר בחשבון ההורה המחובר. הזמנת הורה נוסף תתווסף בהמשך.</Text>
+            </Panel>
+          ) : (
+            <>
+              <Panel>
+                <Text style={s.sectionTitle}>{family.name}</Text>
+                <Text style={s.small}>המשפחה פעילה · חשבון: {userEmail}</Text>
+                <View style={s.divider} />
+                <Text style={s.sectionTitle}>ילדים</Text>
+                {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוצרו פרופילי ילדים.</Text> : family.children.map((child) => (
+                  <View key={child.id} style={s.childRow}>
+                    <View style={s.childIcon}><Text style={{ color: C.mint, fontWeight: "900" }}>●</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.childName}>{child.nickname}</Text>
+                      <Text style={s.small}>{child.devices.length ? child.devices.length + " מכשירים" : "עדיין לא צורף מכשיר"}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Panel>
+              <Panel>
+                <Text style={s.sectionTitle}>הוספת פרופיל ילד</Text>
+                <Field label="שם או כינוי" value={childName} onChangeText={setChildName} placeholder="שם הילד" />
+                <Button title="הוספת ילד" onPress={createChild} disabled={busy} busy={busy} />
+              </Panel>
+              <Panel>
+                <Text style={s.sectionTitle}>השלבים הבאים</Text>
+                <Text style={s.body}>• הזמנת הורה נוסף בהרשאות שוות</Text>
+                <Text style={s.body}>• צימוד מאובטח של מכשיר הילד</Text>
+                <Text style={s.body}>• סנכרון מדיניות ודוחות לאחר בדיקות</Text>
+              </Panel>
+            </>
           )}
 
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
-
-          <View style={s.steps}>
-            <Text style={s.stepsTitle}>מה יתווסף בהמשך</Text>
-            <Step number="01" title="מרחב משפחתי" detail="יצירת משפחה והוספת שני הורים בעלי הרשאות שוות." />
-            <Step number="02" title="פרופיל ילד ומכשיר" detail="קוד צירוף חד־פעמי והסבר ברור על ההרשאות." />
-            <Step number="03" title="סנכרון מאובטח" detail="כללים ודוחות רק אחרי בדיקות Android אמיתיות." />
-          </View>
-
-          <View style={s.footer}>
-            <Text style={s.footerText}>STEVE FAMILY · ANDROID FIRST</Text>
-            <Text style={s.footerSub}>אין מעקב נסתר ואין הגבלות מכשיר פעילות בשלב זה.</Text>
-          </View>
+          {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
+          <Text style={s.footer}>STEVE FAMILY · אין מעקב נסתר או הגבלות פעילות בשלב זה.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function Step({ number, title, detail }: { number: string; title: string; detail: string }) {
-  return (
-    <View style={s.step}>
-      <Text style={s.stepNumber}>{number}</Text>
-      <View style={s.stepBody}>
-        <Text style={s.stepTitle}>{title}</Text>
-        <Text style={s.stepDetail}>{detail}</Text>
-      </View>
-    </View>
-  );
+function Panel({ children }: { children: React.ReactNode }) {
+  return <View style={s.panel}>{children}</View>;
+}
+function Field({ label, value, onChangeText, placeholder, secure }: {
+  label: string; value: string; onChangeText: (v: string) => void; placeholder: string; secure?: boolean;
+}) {
+  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#697995" style={s.input} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} /></View>;
+}
+function Button({ title, onPress, disabled, busy }: { title: string; onPress: () => void; disabled?: boolean; busy?: boolean }) {
+  return <Pressable style={[s.button, disabled && s.disabled]} onPress={onPress} disabled={disabled}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>{title}</Text>}</Pressable>;
 }
 
 const s = StyleSheet.create({
-  flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: C.bg },
-  container: { padding: 20, paddingBottom: 42 },
-  top: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8, marginBottom: 34 },
+  flex: { flex: 1 }, safe: { flex: 1, backgroundColor: C.bg },
+  container: { padding: 20, paddingBottom: 44 },
+  header: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8, marginBottom: 34 },
   logo: { width: 46, height: 46, borderRadius: 16, backgroundColor: C.blue, alignItems: "center", justifyContent: "center" },
-  logoText: { color: "#FFFFFF", fontSize: 25, fontWeight: "900" },
-  brandBlock: { flex: 1 },
-  brand: { color: C.text, fontSize: 21, fontWeight: "900", letterSpacing: -0.5 },
-  brandAccent: { color: C.blue },
-  tag: { color: C.muted, fontSize: 11, marginTop: 3 },
-  platform: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: C.line, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
-  dot: { width: 7, height: 7, borderRadius: 5, backgroundColor: C.mint },
-  platformText: { color: C.muted, fontSize: 9, fontWeight: "800", letterSpacing: 1 },
-  hero: { marginBottom: 24, alignItems: "flex-end" },
-  eyebrow: { color: C.mint, fontSize: 12, fontWeight: "800", marginBottom: 9 },
-  title: { color: C.text, fontSize: 29, fontWeight: "900", textAlign: "right" },
-  subtitle: { color: C.muted, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 9 },
-  card: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 17, marginBottom: 18 },
-  tabs: { flexDirection: "row", backgroundColor: C.bg, borderRadius: 12, padding: 4, marginBottom: 22 },
-  tab: { flex: 1, paddingVertical: 11, borderRadius: 9, alignItems: "center" },
-  tabActive: { backgroundColor: C.panel2 },
-  tabText: { color: C.muted, fontSize: 12, fontWeight: "700" },
-  tabTextActive: { color: C.text },
-  label: { color: C.text, fontSize: 13, fontWeight: "700", textAlign: "right", marginBottom: 8 },
-  passwordLabel: { marginTop: 17 },
-  input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 12, color: C.text, padding: 14, fontSize: 14, textAlign: "left" },
-  helper: { color: C.muted, textAlign: "right", fontSize: 11, lineHeight: 18, marginTop: 10, marginBottom: 16 },
-  primary: { backgroundColor: C.blue, paddingVertical: 15, borderRadius: 12, alignItems: "center", minHeight: 50, justifyContent: "center" },
-  primaryText: { color: "#FFFFFF", fontWeight: "900", fontSize: 14 },
-  secondaryButton: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, paddingVertical: 13, borderRadius: 12, alignItems: "center", marginTop: 18 },
-  secondaryText: { color: C.text, fontWeight: "800" },
-  disabled: { opacity: 0.45 },
-  warning: { backgroundColor: "#2A2115", borderColor: "#6B542E", borderWidth: 1, borderRadius: 15, padding: 15, marginBottom: 18 },
-  warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right", marginBottom: 6 },
-  warningText: { color: "#E0D0AE", fontSize: 12, lineHeight: 19, textAlign: "right" },
-  message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 18 },
+  logoText: { color: "#fff", fontSize: 25, fontWeight: "900" }, brand: { color: C.text, fontSize: 21, fontWeight: "900" },
+  tag: { color: C.muted, fontSize: 11, marginTop: 3 }, platform: { color: C.muted, fontSize: 9, letterSpacing: 1, borderWidth: 1, borderColor: C.line, borderRadius: 20, padding: 8 },
+  hero: { alignItems: "flex-end", marginBottom: 22 }, eyebrow: { color: C.mint, fontSize: 12, fontWeight: "800", marginBottom: 8 },
+  title: { color: C.text, fontSize: 29, fontWeight: "900", textAlign: "right" }, subtitle: { color: C.muted, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 8 },
+  panel: { backgroundColor: C.panel, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 17, marginBottom: 14, gap: 10 },
+  tabs: { flexDirection: "row", backgroundColor: C.bg, borderRadius: 12, padding: 4, marginBottom: 10 },
+  tab: { flex: 1, padding: 11, alignItems: "center", borderRadius: 9 }, activeTab: { backgroundColor: C.panel2 },
+  tabText: { color: C.text, fontWeight: "700", fontSize: 12 }, field: { gap: 7, marginBottom: 6 },
+  label: { color: C.text, fontSize: 13, fontWeight: "700", textAlign: "right" },
+  input: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 12, color: C.text, padding: 14, fontSize: 14, textAlign: "right" },
+  button: { backgroundColor: C.blue, padding: 15, borderRadius: 12, alignItems: "center", minHeight: 50, justifyContent: "center", marginTop: 4 },
+  buttonText: { color: "#fff", fontWeight: "900", fontSize: 14 }, disabled: { opacity: 0.45 },
+  sectionTitle: { color: C.text, fontSize: 17, fontWeight: "900", textAlign: "right" },
+  body: { color: C.muted, fontSize: 13, lineHeight: 21, textAlign: "right" },
+  small: { color: C.muted, fontSize: 11, lineHeight: 18, textAlign: "right" },
+  warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right" },
+  divider: { height: 1, backgroundColor: C.line, marginVertical: 7 },
+  childRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 12, backgroundColor: C.panel2, borderRadius: 13 },
+  childIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+  childName: { color: C.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
+  message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 12 },
   messageText: { color: C.text, fontSize: 12, lineHeight: 19, textAlign: "right" },
-  cardTitle: { color: C.muted, textAlign: "right", fontSize: 12, fontWeight: "700" },
-  emailValue: { color: C.text, fontSize: 16, fontWeight: "800", textAlign: "right", marginTop: 7 },
-  pendingRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, marginTop: 18 },
-  pendingDot: { width: 8, height: 8, borderRadius: 5, backgroundColor: C.amber },
-  pendingText: { color: C.amber, fontSize: 12 },
-  steps: { marginTop: 12, marginBottom: 16 },
-  stepsTitle: { color: C.text, fontSize: 17, fontWeight: "900", textAlign: "right", marginBottom: 13 },
-  step: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 12, backgroundColor: C.panel, borderWidth: 1, borderColor: C.line, borderRadius: 14, padding: 13, marginBottom: 9 },
-  stepNumber: { color: C.blue, fontSize: 12, fontWeight: "900", paddingTop: 2 },
-  stepBody: { flex: 1, alignItems: "flex-end" },
-  stepTitle: { color: C.text, fontSize: 13, fontWeight: "800" },
-  stepDetail: { color: C.muted, fontSize: 11, lineHeight: 17, textAlign: "right", marginTop: 3 },
-  footer: { alignItems: "center", marginTop: 20 },
-  footerText: { color: "#596783", fontSize: 9, letterSpacing: 2, fontWeight: "800" },
-  footerSub: { color: "#71809B", fontSize: 10, marginTop: 8, textAlign: "center" },
+  signOut: { padding: 14, alignItems: "center" }, signOutText: { color: C.red, fontSize: 12, fontWeight: "800" },
+  footer: { color: "#71809B", fontSize: 10, textAlign: "center", marginTop: 22, lineHeight: 17 },
 });
