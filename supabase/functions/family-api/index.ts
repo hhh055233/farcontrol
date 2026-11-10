@@ -118,9 +118,16 @@ Deno.serve(async (req: Request) => {
       if (recentError) throw recentError;
       if (recent?.length) return reply(409, { error: "active_pairing_code_exists" });
 
-      const random = new Uint32Array(2);
-      crypto.getRandomValues(random);
-      const code = String((BigInt(random[0]) * 4294967296n + BigInt(random[1])) % 100000000n).padStart(8, "0");
+      const range = 1n << 64n;
+      const ceiling = range - (range % 10_000_000_000n);
+      let code = "";
+      while (!code) {
+        const bytes = new Uint8Array(8);
+        crypto.getRandomValues(bytes);
+        let value = 0n;
+        for (const byte of bytes) value = (value << 8n) | BigInt(byte);
+        if (value < ceiling) code = String(value % 10_000_000_000n).padStart(10, "0");
+      }
       const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
       const codeHash = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
