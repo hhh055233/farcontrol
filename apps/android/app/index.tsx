@@ -236,7 +236,7 @@ export default function Home() {
                 {family.activity?.length ? family.activity.map((event) => (
                   <View key={event.id} style={s.activityRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.activityTitle}>{event.event_type === "family_created" ? "נוצרה משפחה" : event.event_type === "child_created" ? "נוצר פרופיל ילד" : event.event_type.replaceAll("_", " ")}</Text>
+                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה משפחה" : event.event_type === "child.created" ? "נוצר פרופיל ילד" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
                       <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
                     </View>
                     <View style={s.activityDot} />
