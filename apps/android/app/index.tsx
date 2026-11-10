@@ -6,9 +6,11 @@ import {
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 type Mode = "signup" | "signin";
+type EntryRole = "choose" | "parent" | "child";
 type Family = {
   id: string; name: string; status: string;
   children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string }> }>;
+  activity?: Array<{ id: number; event_type: string; created_at: string; details: Record<string, unknown> }>;
 };
 
 const C = {
@@ -18,6 +20,7 @@ const C = {
 };
 
 export default function Home() {
+  const [entryRole, setEntryRole] = useState<EntryRole>("choose");
   const [mode, setMode] = useState<Mode>("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -157,7 +160,36 @@ export default function Home() {
             </Panel>
           ) : null}
 
-          {!userEmail ? (
+          {!userEmail && entryRole === "choose" ? (
+            <Panel>
+              <Text style={s.sectionTitle}>איך תרצו להיכנס?</Text>
+              <Pressable style={s.roleCard} onPress={() => setEntryRole("parent")}>
+                <View style={s.roleIcon}><Text style={s.roleEmoji}>👨‍👩‍👧</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.roleTitle}>כניסת הורה</Text>
+                  <Text style={s.small}>ניהול המשפחה, הגדרות ודוחות פעילות</Text>
+                </View>
+                <Text style={s.roleArrow}>‹</Text>
+              </Pressable>
+              <Pressable style={s.roleCard} onPress={() => setEntryRole("child")}>
+                <View style={s.roleIcon}><Text style={s.roleEmoji}>🧒</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.roleTitle}>כניסת ילד</Text>
+                  <Text style={s.small}>כניסה למכשיר שצורף על ידי ההורה</Text>
+                </View>
+                <Text style={s.roleArrow}>‹</Text>
+              </Pressable>
+            </Panel>
+          ) : !userEmail && entryRole === "child" ? (
+            <Panel>
+              <Text style={s.sectionTitle}>חיבור מכשיר ילד</Text>
+              <Text style={s.body}>כדי להיכנס, ההורה ייצור קוד צימוד מתוך החשבון שלו. לאחר שהצימוד המאובטח יושלם, המכשיר יופיע בלוח ההורה.</Text>
+              <View style={s.notice}>
+                <Text style={s.noticeText}>צימוד מכשיר וקוד כניסה עדיין לא פעילים בגרסה הזו. לא נבקש מכם להזין קוד שלא ניתן לאמת.</Text>
+              </View>
+              <Button title="חזרה לבחירת כניסה" onPress={() => setEntryRole("choose")} />
+            </Panel>
+          ) : !userEmail ? (
             <Panel>
               <View style={s.tabs}>
                 <Pressable onPress={() => setMode("signup")} style={[s.tab, mode === "signup" && s.activeTab]}><Text style={s.tabText}>יצירת חשבון</Text></Pressable>
@@ -210,7 +242,8 @@ export default function Home() {
 
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
           {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
-          <Text style={s.footer}>STEVE FAMILY · אין מעקב נסתר או הגבלות פעילות בשלב זה.</Text>
+          {!userEmail && entryRole === "parent" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
+          <Text style={s.footer}>STEVE FAMILY · הצגת מידע שקוף בלבד; הגבלות מכשיר יופעלו רק לאחר צימוד והרשאות מתאימות.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -254,6 +287,12 @@ const s = StyleSheet.create({
   childRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 12, backgroundColor: C.panel2, borderRadius: 13 },
   childIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
   childName: { color: C.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
+  roleCard: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 14, backgroundColor: C.panel2, borderRadius: 14, borderWidth: 1, borderColor: C.line },
+  roleIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
+  roleEmoji: { fontSize: 23 }, roleTitle: { color: C.text, fontSize: 15, fontWeight: "900", textAlign: "right" },
+  roleArrow: { color: C.blue, fontSize: 25, fontWeight: "900" },
+  notice: { backgroundColor: "#302A1B", borderColor: "#6A5630", borderWidth: 1, borderRadius: 12, padding: 12 },
+  noticeText: { color: C.amber, fontSize: 12, lineHeight: 19, textAlign: "right" },
   message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 12 },
   messageText: { color: C.text, fontSize: 12, lineHeight: 19, textAlign: "right" },
   signOut: { padding: 14, alignItems: "center" }, signOutText: { color: C.red, fontSize: 12, fontWeight: "800" },
