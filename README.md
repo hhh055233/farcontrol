@@ -1,15 +1,33 @@
 # Steve Family
 
-A transparent family device-management app prototype.
+מערכת משפחתית לניהול מכשירי Android, עם ממשק הורים וממשק ילדים.
 
-## Scope
-- Parent dashboard and multiple managed-device overview.
-- Explicit device pairing and consent.
-- Screen-time schedules and app restriction planning.
-- Activity/audit history and clear permission status.
+## החלטות מוצר
+- **Android בלבד** בשלב זה. אין תמיכה ב־iPhone או ב־iOS בתוכנית הנוכחית.
+- שני ההורים מקבלים הרשאות ניהול שוות באותו מרחב משפחתי.
+- לכל ילד יש חשבון/פרופיל משלו ואפליקציית Android ייעודית במכשיר שלו.
+- ההצטרפות מתבצעת בהסכמה ובאישור גלוי במכשיר הילד.
 
-## Important platform limits
-This web dashboard is a prototype/control plane. It does not remotely control phones by itself. Android and iOS enforcement requires separate native apps, OS-approved APIs, explicit enrollment, and platform-specific permissions. No stealth monitoring or security bypasses are implemented.
+## יכולות מתוכננות
+- מגבלות זמן מסך ולוחות זמנים, כולל שעת שינה ושעות לימודים.
+- בקשות ואישורים להתקנת אפליקציות, והגבלות שימוש.
+- דוחות שימוש ויומן פעילות שקוף.
+- מיקום משפחתי ושיתוף התראות הגעה, רק בהרשאה מתאימה ובהסכמה.
+- כללי גלישה וסינון תכנים באמצעות יכולות Android מורשות.
+- ניהול כמה ילדים ומכשירים מחשבון משפחתי אחד.
 
-## Development
-This project uses Next.js and TypeScript. Run `npm install` then `npm run dev`.
+## גבולות טכניים ובטיחות
+היקף השליטה תלוי בגרסת Android, ביצרן המכשיר, בהרשאות ובמצב ההרשמה. לא נעקוף מנגנוני אבטחה, לא נסתיר ניטור ולא נבטיח שליטה שאינה נתמכת על ידי Android. פעולות כמו הגבלת התקנות, נעילת הגדרות או אכיפת מדיניות דורשות בחירת ארכיטקטורה והרשאות מערכת מתאימות, ולעיתים מצב ניהול מכשיר ייעודי.
+
+## מצב הפרויקט
+האתר הנוכחי הוא **אב־טיפוס חזותי בלבד** שנבנה ב־Next.js. הנתונים והמתגים בו הם נתוני הדגמה מקומיים; עדיין אין התחברות אמיתית, מסד נתונים, שיוך מכשירים, אפליקציית Android או אכיפת כללים במכשירים.
+
+## שלבי פיתוח
+1. אפיון תפקידים, משפחה, הורים וילדים.
+2. אפליקציית Android לילדים ואפליקציית Android להורים (או ממשק הורים מותאם Android).
+3. שרת מאובטח, התחברות, מסד נתונים והזמנות משפחתיות.
+4. שיוך מכשיר ואישור הרשאות שקוף.
+5. מימוש יכולות Android לפי הרשאות/API נתמכים ובדיקות על מכשירים אמיתיים.
+
+## פיתוח האתר
+האתר משתמש ב־Next.js וב־TypeScript. להרצה מקומית: `npm install` ואז `npm run dev`.
