@@ -104,8 +104,8 @@ create table public.audit_events (
   event_type text not null check (char_length(event_type) between 1 and 80),
   details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  foreign key (actor_member_id, family_id) references public.family_members(id, family_id) on delete set null,
-  foreign key (subject_child_id, family_id) references public.child_profiles(id, family_id) on delete set null
+  foreign key (actor_member_id, family_id) references public.family_members(id, family_id) on delete restrict,
+  foreign key (subject_child_id, family_id) references public.child_profiles(id, family_id) on delete restrict
 );
 
 create index audit_events_family_time_idx on public.audit_events(family_id, created_at desc);
