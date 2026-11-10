@@ -108,6 +108,14 @@ Deno.serve(async (req: Request) => {
           .eq("family_id", family.id);
         if (childError) throw childError;
 
+        const { data: activity, error: activityError } = await admin
+          .from("audit_events")
+          .select("id,event_type,created_at,details")
+          .eq("family_id", family.id)
+          .order("created_at", { ascending: false })
+          .limit(25);
+        if (activityError) throw activityError;
+
         const childIds = (children ?? []).map((child) => child.id);
         let devices: unknown[] = [];
         if (childIds.length) {
@@ -122,6 +130,7 @@ Deno.serve(async (req: Request) => {
         families.push({
           ...family,
           currentParent: { id: membership.id, displayName: membership.display_name },
+          activity: activity ?? [],
           children: (children ?? []).map((child) => ({
             ...child,
             devices: devices.filter((device: any) => device.child_profile_id === child.id),
