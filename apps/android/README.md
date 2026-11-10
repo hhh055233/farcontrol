@@ -1,24 +1,32 @@
 # Steve Family Android app
 
-Expo / React Native Android-first app shell.
+Android-first Expo / React Native application.
 
-## Run locally
+## Local setup
+
 ```bash
 cd apps/android
 npm install
+cp .env.example .env
+# Fill the two EXPO_PUBLIC_SUPABASE_* values from the Supabase project Connect panel.
 npx expo start
 ```
 
-Scan the QR code with Expo Go for UI preview. This is not a production device-management app.
+The app uses Supabase Auth for parent email/password sign-up and sign-in. A publishable key is suitable for the client; never put a Supabase `service_role` or secret key in this app.
 
-## Current scope
-- Parent/child role preview screens.
-- RTL Hebrew interface.
-- Family-name and pairing-code input prototypes.
-- Explicit demo messaging; no account is created and no pairing request is sent.
+## Implemented in this branch
 
-## Not implemented yet
-Authentication, database/API connection, real invitation/pairing, device credentials, policy sync, app-usage access, location, notifications, or device restrictions. Do not enter real personal data in this prototype.
+- Hebrew RTL-oriented Android sign-in and account creation screens.
+- Supabase client initialization with persistent local session storage via Expo SQLite.
+- Explicit unavailable-state handling when Supabase environment values are missing.
+- Parent-only database read policies and private authorization helper in the schema.
 
-## Android capability and privacy
-Only add device capabilities through documented Android APIs and visible permission flows. Do not use hidden monitoring or attempt to bypass OS restrictions. Any production rollout requires privacy review, Play policy review, and real-device tests.
+## Not yet implemented / not yet verified
+
+- The linked Supabase project currently reports `INACTIVE`; database operations and authentication cannot be verified until the project is active.
+- Family creation, second-parent invitation, child profile creation, one-time pairing, and device credential issuance.
+- Edge Functions/API endpoints, rate limiting, and end-to-end audit transactions.
+- Child companion flow, policy sync, device usage reporting, location sharing, notifications, or device restrictions.
+- APK build, install test, and real-device test.
+
+Do not describe this build as a completed parental-control app. No device restrictions or hidden monitoring are active. Implement device capabilities only through documented Android APIs, visible permission flows, and transparent enrollment.
