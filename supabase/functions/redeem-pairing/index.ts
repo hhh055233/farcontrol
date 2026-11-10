@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
 
   // Supabase's edge gateway supplies the client address. Do not trust a caller-provided custom IP field.
   const forwarded = req.headers.get("x-forwarded-for");
-  const clientIp = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? forwarded?.split(",")[0]?.trim();
+  const clientIp = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? forwarded?.split(",").at(-1)?.trim();
   if (!clientIp) return reply(503, { error: "rate_limit_unavailable" });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
