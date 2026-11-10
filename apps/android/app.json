@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Steve Family",
+    "slug": "steve-family",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "stevefamily",
+    "android": {
+      "package": "com.stevefamily.app",
+      "versionCode": 1,
+      "permissions": []
+    },
+    "plugins": ["expo-font"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
