@@ -133,8 +133,8 @@ export default function Home() {
             <View style={s.warning}>
               <Text style={s.warningTitle}>השרת עדיין לא הוגדר</Text>
               <Text style={s.warningText}>
-                לא ניתן ליצור חשבון כרגע. פרויקט Supabase שנמצא בחשבון מסומן כלא פעיל,
-                ולכן לא נשלחת בקשה ולא מוצגים נתונים מדומים.
+                לא ניתן ליצור חשבון כרגע כי פרטי החיבור של Supabase עדיין לא הוגדרו בבניית האפליקציה.
+                לא נשלחת בקשה ולא מוצגים נתונים מדומים.
               </Text>
             </View>
           ) : null}
