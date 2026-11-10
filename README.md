@@ -34,3 +34,7 @@
 
 ## פיתוח האתר
 האתר משתמש ב־Next.js וב־TypeScript. להרצה מקומית: `npm install` ואז `npm run dev`.
+
+
+## אפליקציית Android
+קוד האפליקציה הראשוני נמצא ב־`apps/android/` ומבוסס Expo + React Native. יש בו מסכי אב־טיפוס בעברית להורה ולילד/ה. הוראות הרצה ומגבלות מופיעות ב־[`apps/android/README.md`](apps/android/README.md). כרגע אין עדיין חיבור לשרת או APK מוכן להתקנה.
