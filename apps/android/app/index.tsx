@@ -3,6 +3,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 type Mode = "signup" | "signin";
@@ -33,6 +34,9 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [pairingCodes, setPairingCodes] = useState<Record<string, { code: string; expiresAt: string }>>({});
+  const [pairingCodeInput, setPairingCodeInput] = useState("");
+  const [childDevice, setChildDevice] = useState<{ deviceId: string; childName: string; familyName: string } | null>(null);
+  const [hasSavedChildToken, setHasSavedChildToken] = useState(false);
 
   const loadOverview = useCallback(async () => {
     if (!supabase) return;
@@ -43,6 +47,21 @@ export default function Home() {
     if (!error && data?.families) setFamilies(data.families as Family[]);
     else if (error) setMessage("לא הצלחנו לטעון את נתוני המשפחה. נסו לרענן.");
     setLoadingOverview(false);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    SecureStore.getItemAsync("steve-family-device-credential").then((stored) => {
+      if (!alive || !stored) return;
+      try {
+        const parsed = JSON.parse(stored);
+        if (typeof parsed?.token === "string" && typeof parsed?.deviceId === "string") {
+          setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "ילד"), familyName: String(parsed.familyName ?? "המשפחה") });
+          setHasSavedChildToken(true);
+        }
+      } catch { void SecureStore.deleteItemAsync("steve-family-device-credential"); }
+    }).catch(() => { if (alive) setMessage("לא ניתן לקרוא את פרטי הצימוד המאובטחים במכשיר."); });
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
@@ -144,6 +163,40 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  async function redeemChildPairing() {
+    if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
+    const code = pairingCodeInput.replace(/\s/g, "");
+    if (!/^\d{10}$/.test(code)) return setMessage("יש להזין קוד צימוד בן 10 ספרות.");
+    setBusy(true); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("redeem-pairing", {
+        body: { code, deviceLabel: "מכשיר Android" },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        if (data.error === "too_many_attempts") throw new Error("בוצעו יותר מדי ניסיונות. המתינו 15 דקות ונסו שוב.");
+        if (data.error === "invalid_or_expired_code" || data.error === "invalid_code_format") throw new Error("הקוד שגוי או שפג תוקפו. בקשו מההורה קוד חדש.");
+        throw new Error("לא הצלחנו לצמד את המכשיר כרגע.");
+      }
+      if (!data?.paired || typeof data.deviceToken !== "string" || typeof data.deviceId !== "string") {
+        throw new Error("השרת לא החזיר אישור צימוד תקין.");
+      }
+      const stored = {
+        token: data.deviceToken,
+        deviceId: data.deviceId,
+        childName: String(data.childName ?? "ילד"),
+        familyName: String(data.familyName ?? "המשפחה"),
+      };
+      await SecureStore.setItemAsync("steve-family-device-credential", JSON.stringify(stored));
+      setChildDevice({ deviceId: stored.deviceId, childName: stored.childName, familyName: stored.familyName });
+      setHasSavedChildToken(true);
+      setPairingCodeInput("");
+      setMessage("המכשיר צורף בהצלחה למשפחה. פרטי הגישה נשמרו באחסון המאובטח של Android.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "צימוד המכשיר נכשל.");
+    } finally { setBusy(false); }
+  }
+
   async function signOut() {
     if (!supabase) return;
     setBusy(true);
@@ -204,11 +257,22 @@ export default function Home() {
             </Panel>
           ) : !userEmail && entryRole === "child" ? (
             <Panel>
-              <Text style={s.sectionTitle}>חיבור מכשיר ילד</Text>
-              <Text style={s.body}>כדי להיכנס, ההורה ייצור קוד צימוד מתוך החשבון שלו. לאחר שהצימוד המאובטח יושלם, המכשיר יופיע בלוח ההורה.</Text>
-              <View style={s.notice}>
-                <Text style={s.noticeText}>צימוד מכשיר וקוד כניסה עדיין לא פעילים בגרסה הזו. לא נבקש מכם להזין קוד שלא ניתן לאמת.</Text>
-              </View>
+              {hasSavedChildToken && childDevice ? (
+                <>
+                  <Text style={s.sectionTitle}>המכשיר מחובר למשפחה</Text>
+                  <Text style={s.body}>היי {childDevice.childName}. המכשיר הזה צורף אל {childDevice.familyName} בהצלחה.</Text>
+                  <View style={s.notice}><Text style={s.noticeText}>פרטי הצימוד נשמרים באחסון המאובטח של Android. ההורה יכול לראות שהמכשיר צורף ביומן הפעילות.</Text></View>
+                  <Text style={s.small}>מזהה מכשיר: {childDevice.deviceId.slice(0, 8)}…</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={s.sectionTitle}>חיבור מכשיר ילד</Text>
+                  <Text style={s.body}>בקשו מההורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
+                  <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="0000000000" keyboardType="numeric" maxLength={10} />
+                  <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
+                  <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
+                </>
+              )}
               <Button title="חזרה לבחירת כניסה" onPress={() => setEntryRole("choose")} />
             </Panel>
           ) : !userEmail ? (
@@ -246,7 +310,7 @@ export default function Home() {
                       <Text style={s.small}>{child.devices.length ? child.devices.length + " מכשירים" : "עדיין לא צורף מכשיר"}</Text>
                       {pairingCodes[child.id] ? (
                         <View style={s.pairCode}>
-                          <Text style={s.pairCodeLabel}>קוד צימוד זמני · עד 10 דקות</Text>
+                          <Text style={s.pairCodeLabel}>קוד צימוד חד־פעמי · 10 ספרות · 10 דקות</Text>
                           <Text selectable style={s.pairCodeValue}>{pairingCodes[child.id].code}</Text>
                           <Text style={s.small}>תוקף עד {new Date(pairingCodes[child.id].expiresAt).toLocaleTimeString("he-IL")}</Text>
                         </View>
@@ -269,7 +333,7 @@ export default function Home() {
                 {family.activity?.length ? family.activity.map((event) => (
                   <View key={event.id} style={s.activityRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה משפחה" : event.event_type === "child.created" ? "נוצר פרופיל ילד" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
+                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה משפחה" : event.event_type === "child.created" ? "נוצר פרופיל ילד" : event.event_type === "device.paired" ? "מכשיר ילד צורף למשפחה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
                       <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
                     </View>
                     <View style={s.activityDot} />
@@ -299,10 +363,10 @@ export default function Home() {
 function Panel({ children }: { children: ReactNode }) {
   return <View style={s.panel}>{children}</View>;
 }
-function Field({ label, value, onChangeText, placeholder, secure }: {
-  label: string; value: string; onChangeText: (v: string) => void; placeholder: string; secure?: boolean;
+function Field({ label, value, onChangeText, placeholder, secure, keyboardType, maxLength }: {
+  label: string; value: string; onChangeText: (v: string) => void; placeholder: string; secure?: boolean; keyboardType?: "numeric"; maxLength?: number;
 }) {
-  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#697995" style={s.input} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} /></View>;
+  return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor="#697995" style={s.input} secureTextEntry={secure} keyboardType={keyboardType} maxLength={maxLength} autoCapitalize="none" autoCorrect={false} /></View>;
 }
 function Button({ title, onPress, disabled, busy }: { title: string; onPress: () => void; disabled?: boolean; busy?: boolean }) {
   return <Pressable style={[s.button, disabled && s.disabled]} onPress={onPress} disabled={disabled}>{busy ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>{title}</Text>}</Pressable>;
