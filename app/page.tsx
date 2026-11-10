@@ -6,7 +6,7 @@ type Device = { id: number; name: string; type: string; status: string; lastSeen
 
 const initialDevices: Device[] = [
   { id: 1, name: "המכשיר של נועם", type: "Android", status: "מחובר", lastSeen: "פעיל עכשיו", usage: "2ש׳ 14ד׳", color: "blue" },
-  { id: 2, name: "האייפון המשפחתי", type: "iPhone", status: "לא מחובר", lastSeen: "נראה לאחרונה לפני 18 דק׳", usage: "1ש׳ 42ד׳", color: "violet" },
+  { id: 2, name: "המכשיר של מאיה", type: "Android", status: "לא מחובר", lastSeen: "נראה לאחרונה לפני 18 דק׳", usage: "1ש׳ 42ד׳", color: "violet" },
 ];
 
 const activities = [
@@ -45,7 +45,7 @@ export default function Home() {
           <a className="nav-item" href="#activity"><span>↗</span> היסטוריית פעילות</a>
           <a className="nav-item" href="#security"><span>⬡</span> אבטחה והרשאות</a>
         </nav>
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon">✦</div><strong>צריכים עזרה?</strong><p>מדריכים וטיפים להגדרה בטוחה של המכשירים.</p><a href="#security">מרכז העזרה ←</a></div><div className="profile"><div className="avatar">ה</div><div><strong>מנהל המשפחה</strong><small>חשבון הורה</small></div><span className="dots">•••</span></div></div>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon">✦</div><strong>צריכים עזרה?</strong><p>מדריכים וטיפים להגדרה בטוחה של המכשירים.</p><a href="#security">מרכז העזרה ←</a></div><div className="profile"><div className="avatar">ה</div><div><strong>הורים מנהלים</strong><small>שני חשבונות הורים</small></div><span className="dots">•••</span></div></div>
       </aside>
 
       <section className="content" id="overview">
@@ -72,7 +72,7 @@ export default function Home() {
         </div>
       </section>
 
-      {showPair && <div className="modal-backdrop" onClick={() => setShowPair(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowPair(false)}>×</button><div className="modal-mark">＋</div><h2>הוספת מכשיר למרחב</h2><p>השלב הבא יהיה התקנת Steve Family במכשיר ואישור החיבור מתוך המכשיר עצמו.</p>{pairCode ? <div className="pair-code"><small>קוד הדגמה בלבד — אינו מחבר מכשיר</small><strong>{pairCode}</strong></div> : <div className="pair-steps"><div><b>1</b><span>מתקינים את האפליקציה במכשיר</span></div><div><b>2</b><span>בעל המכשיר מאשר את השיוך</span></div><div><b>3</b><span>בוחרים הרשאות באופן שקוף</span></div></div>}<button className="primary-btn modal-action" onClick={createDemoCode}>{pairCode ? "יצירת קוד חדש" : "הצגת קוד הדגמה"}</button><small className="modal-disclaimer">החיבור האמיתי יתווסף לאחר פיתוח האפליקציות המקוריות ל־Android ול־iOS.</small></div></div>}
+      {showPair && <div className="modal-backdrop" onClick={() => setShowPair(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowPair(false)}>×</button><div className="modal-mark">＋</div><h2>הוספת מכשיר למרחב</h2><p>השלב הבא יהיה התקנת Steve Family במכשיר ואישור החיבור מתוך המכשיר עצמו.</p>{pairCode ? <div className="pair-code"><small>קוד הדגמה בלבד — אינו מחבר מכשיר</small><strong>{pairCode}</strong></div> : <div className="pair-steps"><div><b>1</b><span>מתקינים את האפליקציה במכשיר</span></div><div><b>2</b><span>בעל המכשיר מאשר את השיוך</span></div><div><b>3</b><span>בוחרים הרשאות באופן שקוף</span></div></div>}<button className="primary-btn modal-action" onClick={createDemoCode}>{pairCode ? "יצירת קוד חדש" : "הצגת קוד הדגמה"}</button><small className="modal-disclaimer">החיבור האמיתי יתווסף לאחר פיתוח האפליקציות המקוריות ל־Android.</small></div></div>}
       {toast && <div className="toast">{toast}</div>}
     </main>
   );
