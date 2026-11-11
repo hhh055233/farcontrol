@@ -400,7 +400,7 @@ export default function Home() {
                             const seenAt = device.last_seen_at ? Date.parse(device.last_seen_at) : 0;
                             const online = device.status === "active" && seenAt > 0 && Date.now() - seenAt < 90000;
                             return (
-                              <Pressable key={device.id} style={[s.deviceRow, selected && s.deviceRowSelected]} onPress={() => toggleDeviceSelection(device.id)}>
+                              <Pressable key={device.id} disabled={device.status !== "active"} style={[s.deviceRow, selected && s.deviceRowSelected, device.status !== "active" && { opacity: 0.55 }]} onPress={() => toggleDeviceSelection(device.id)}>
                                 <View style={{ flex: 1 }}>
                                   <Text style={s.deviceName}>{device.device_label || "מכשיר Android"}</Text>
                                   <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : "לא מחובר כרגע"}</Text>
