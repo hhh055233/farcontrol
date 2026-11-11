@@ -417,6 +417,26 @@ export default function Home() {
     return () => { alive = false; clearInterval(timer); };
   }, [entryRole, hasSavedChildToken, childDevice]);
 
+  function revokeDevice(deviceId: string) {
+    Alert.alert("ביטול צימוד", "המכשיר יאבד גישה לשרת ולא יקבל עוד הודעות מהמורה.", [
+      { text: "חזרה", style: "cancel" },
+      { text: "ביטול צימוד", style: "destructive", onPress: () => {
+        void (async () => {
+          if (!supabase) return;
+          setBusy(true);
+          try {
+            const { data, error } = await supabase.functions.invoke("family-api", { body: { action: "revoke_device", deviceId } });
+            if (error || data?.error || data?.revoked !== true) throw new Error("ביטול הצימוד נכשל.");
+            setMessage("הצימוד בוטל והמכשיר נחסם בשרת.");
+            await loadOverview();
+          } catch (e) {
+            setMessage(e instanceof Error ? e.message : "ביטול הצימוד נכשל.");
+          } finally { setBusy(false); }
+        })();
+      } },
+    ]);
+  }
+
   async function signOut() {
     if (!supabase) return;
     setBusy(true);
@@ -551,13 +571,16 @@ export default function Home() {
                             const seenAt = device.last_seen_at ? Date.parse(device.last_seen_at) : 0;
                             const online = device.status === "active" && seenAt > 0 && Date.now() - seenAt < 90000;
                             return (
-                              <Pressable key={device.id} disabled={device.status !== "active"} style={[s.deviceRow, selected && s.deviceRowSelected, device.status !== "active" && { opacity: 0.55 }]} onPress={() => toggleDeviceSelection(device.id)}>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={s.deviceName}>{device.device_label || "מכשיר Android"}</Text>
-                                  <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : device.status === "pending" ? "ממתין לצימוד" : "לא מחובר כרגע"}</Text>
-                                </View>
-                                <View style={[s.selectMark, selected && s.selectMarkActive]}><Text style={s.selectMarkText}>{selected ? "✓" : "+"}</Text></View>
-                              </Pressable>
+                              <View key={device.id} style={{ gap: 3 }}>
+                                <Pressable disabled={device.status !== "active"} style={[s.deviceRow, selected && s.deviceRowSelected, device.status !== "active" && { opacity: 0.55 }]} onPress={() => toggleDeviceSelection(device.id)}>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={s.deviceName}>{device.device_label || "מכשיר Android"}</Text>
+                                    <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : device.status === "pending" ? "ממתין לצימוד" : "לא מחובר כרגע"}</Text>
+                                  </View>
+                                  <View style={[s.selectMark, selected && s.selectMarkActive]}><Text style={s.selectMarkText}>{selected ? "✓" : "+"}</Text></View>
+                                </Pressable>
+                                {device.status === "active" ? <Pressable style={s.selectAll} onPress={() => revokeDevice(device.id)} disabled={busy}><Text style={s.selectAllText}>ביטול צימוד למכשיר</Text></Pressable> : null}
+                              </View>
                             );
                           })}
                           <Pressable style={s.selectAll} onPress={() => toggleGroupSelection(child.devices)}>
