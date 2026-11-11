@@ -64,6 +64,7 @@ export default function Home() {
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [pairingCodes, setPairingCodes] = useState<Record<string, { code: string; expiresAt: string }>>({});
   const [pairingCodeInput, setPairingCodeInput] = useState("");
+  const [pairingConsent, setPairingConsent] = useState(false);
   const [deviceLabel, setDeviceLabel] = useState("");
   const [childDevice, setChildDevice] = useState<{ deviceId: string; childName: string; familyName: string } | null>(null);
   const [hasSavedChildToken, setHasSavedChildToken] = useState(false);
@@ -222,7 +223,7 @@ export default function Home() {
     if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
     const cleanEmail = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setMessage("נא להזין אימייל תקין.");
-    if (password.length < 8) return setMessage("הסיסמה חייבת להכיל הזינו סיסמה.");
+    if (password.length < 8) return setMessage("הסיסמה חייבת להכיל לפחות 8 תווים.");
     setBusy(true); setMessage("");
     try {
       if (mode === "signup") {
@@ -365,6 +366,7 @@ export default function Home() {
       setChildDevice({ deviceId: stored.deviceId, childName: stored.childName, familyName: stored.familyName });
       setHasSavedChildToken(true);
       setPairingCodeInput("");
+      setPairingConsent(false);
       setMessage("המכשיר צורף בהצלחה לכיתה. פרטי הגישה נשמרו באחסון המאובטח של Android.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "צימוד המכשיר נכשל.");
@@ -489,8 +491,12 @@ export default function Home() {
                   <Text style={s.sectionTitle}>חיבור מכשיר</Text>
                   <Text style={s.body}>בקשו מהמורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
                   <Field label="שם המכשיר" value={deviceLabel} onChangeText={setDeviceLabel} placeholder="שם המכשיר" />
-                  <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="קוד בן 10 ספרות" keyboardType="numeric" maxLength={10} />
-                  <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
+                  <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => { setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10)); setPairingConsent(false); }} placeholder="קוד בן 10 ספרות" keyboardType="numeric" maxLength={10} />
+                  <Pressable style={s.selectAll} onPress={() => setPairingConsent((value) => !value)} accessibilityRole="checkbox" accessibilityState={{ checked: pairingConsent }}>
+                    <Text style={s.selectAllText}>{pairingConsent ? "☑" : "□"} אני מאשר/ת לצרף את המכשיר לכיתה באמצעות הקוד שקיבלתי מהמורה.</Text>
+                  </Pressable>
+                  <Text style={s.small}>לאחר הצירוף, המורה יוכל לראות את שם המכשיר ואת מצב החיבור, ולשלוח אליו הודעות גלויות באפליקציה. לא נאספים מיקום או תוכן אישי באמצעות תהליך הצימוד.</Text>
+                  <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10 || !pairingConsent} busy={busy} />
                   <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
                 </>
               )}
