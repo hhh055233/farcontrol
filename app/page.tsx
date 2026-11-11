@@ -231,6 +231,18 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  async function revokeDevice(deviceId: string) {
+    if (!window.confirm("לבטל את צימוד המכשיר? הוא לא יוכל לקבל עוד הודעות מהמורה.")) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await callApi({ action: "revoke_device", deviceId });
+      setMessage("צימוד המכשיר בוטל והגישה שלו לשרת נחסמה.");
+      await loadOverview();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ביטול הצימוד נכשל.");
+    } finally { setBusy(false); }
+  }
+
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -310,7 +322,7 @@ export default function Home() {
                   {pairings[group.id] && <div className="pairing"><div><small>קוד חד-פעמי · בתוקף עד {new Date(pairings[group.id].expiresAt).toLocaleTimeString("he-IL")}</small><strong>{pairings[group.id].code}</strong></div><button className="button button-quiet" onClick={() => void navigator.clipboard?.writeText(pairings[group.id].code)}>העתקה</button></div>}
                   <div className="devices">
                     {group.devices.length === 0 ? <p className="empty-inline">אין עדיין מכשירים משויכים. צרו קוד והזינו אותו באפליקציית Steve Control שעל הטאבלט.</p> : group.devices.map(device => (
-                      <div className="device" key={device.id}><span className={`status-dot ${device.status === "active" ? "status-active" : ""}`} /><div><strong>{device.device_label || "טאבלט"}</strong><small>{device.status === "active" ? "רשום ומורשה" : "לא פעיל"} · {device.last_seen_at ? `נראה לאחרונה ${new Date(device.last_seen_at).toLocaleString("he-IL")}` : "טרם נרשם חיבור"}</small></div></div>
+                      <div className="device" key={device.id}><span className={`status-dot ${device.status === "active" ? "status-active" : ""}`} /><div><strong>{device.device_label || "מכשיר"}</strong><small>{device.status === "active" ? "רשום ומורשה" : device.status === "revoked" ? "הצימוד בוטל" : "לא פעיל"} · {device.last_seen_at ? `נראה לאחרונה ${new Date(device.last_seen_at).toLocaleString("he-IL")}` : "טרם נרשם חיבור"}</small></div>{device.status === "active" && <button className="button button-quiet" disabled={busy} onClick={() => void revokeDevice(device.id)}>ביטול צימוד</button>}</div>
                     ))}
                   </div>
                   <div className="notice-form"><label>הודעה שתוצג בטאבלטים בקבוצה<textarea maxLength={200} value={noticeDrafts[group.id] ?? ""} onChange={e => setNoticeDrafts(current => ({ ...current, [group.id]: e.target.value }))} placeholder="הודעה קצרה מהמורה" /></label><button className="button button-secondary" disabled={busy || !group.devices.some(d => d.status === "active")} onClick={() => void sendNotice(group.id)}>שליחת הודעה לכל המכשירים הפעילים</button></div>
