@@ -2,12 +2,16 @@ name: Android APK build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/secure-family-backend
 
 permissions:
   contents: read
 
 jobs:
   android-apk:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-apk]')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
