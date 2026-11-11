@@ -74,7 +74,7 @@ Deno.serve(async (req: Request) => {
 
       const { data, error } = await admin.rpc("create_device_group_for_teacher", {
         p_user_id: user.id,
-        p_nickname: nickname,
+        p_group_name: nickname,
       });
       if (error) {
         if (error.code === "P0002") return reply(403, { error: "teacher_family_required" });
