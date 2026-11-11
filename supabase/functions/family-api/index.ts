@@ -180,15 +180,27 @@ Deno.serve(async (req: Request) => {
       const member = memberships.find((m) => m.family_id === child.family_id);
       if (!member) return reply(403, { error: "teacher_required" });
 
-      const { data: devices, error: deviceError } = await admin
+      const requestedDeviceIds = Array.isArray(body.deviceIds) ? body.deviceIds : null;
+      if (requestedDeviceIds && (
+        requestedDeviceIds.length < 1 ||
+        requestedDeviceIds.length > 50 ||
+        requestedDeviceIds.some((id) => typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) ||
+        new Set(requestedDeviceIds).size !== requestedDeviceIds.length
+      )) return reply(400, { error: "invalid_device_selection" });
+
+      let devicesQuery = admin
         .from("devices")
         .select("id")
         .eq("child_profile_id", childId)
         .eq("family_id", child.family_id)
-        .eq("status", "active")
-        .limit(50);
+        .eq("status", "active");
+      if (requestedDeviceIds) devicesQuery = devicesQuery.in("id", requestedDeviceIds);
+      const { data: devices, error: deviceError } = await devicesQuery.limit(50);
       if (deviceError) throw deviceError;
       if (!devices?.length) return reply(409, { error: "no_active_devices" });
+      if (requestedDeviceIds && devices.length !== requestedDeviceIds.length) {
+        return reply(403, { error: "device_selection_invalid" });
+      }
 
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const { error: commandError } = await admin.from("device_commands").insert(
@@ -208,7 +220,7 @@ Deno.serve(async (req: Request) => {
         actor_member_id: member.id,
         subject_child_id: childId,
         event_type: "device.notice_queued",
-        event_data: { deviceCount: devices.length },
+        event_data: { deviceCount: devices.length, targetedSelection: Boolean(requestedDeviceIds) },
       });
       if (auditError) throw auditError;
 
