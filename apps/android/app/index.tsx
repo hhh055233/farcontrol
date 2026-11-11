@@ -9,9 +9,26 @@ import { isSupabaseConfigured, supabase } from "../lib/supabase";
 type Mode = "signup" | "signin";
 type EntryRole = "choose" | "teacher" | "device";
 type Family = {
-  id: string; name: string; status: string;
-  activity?: Array<{ id: string; event_type: string; created_at: string; details: Record<string, unknown> }>;
-  activity?: Array<{ id: number; event_type: string; created_at: string; details: Record<string, unknown> }>;
+  id: string;
+  name: string;
+  status: string;
+  children: Array<{
+    id: string;
+    nickname: string;
+    devices: Array<{
+      id: string;
+      device_label: string;
+      status: string;
+      platform?: string;
+      last_seen_at?: string | null;
+    }>;
+  }>;
+  activity?: Array<{
+    id: string;
+    event_type: string;
+    created_at: string;
+    details: Record<string, unknown>;
+  }>;
 };
 
 const C = {
