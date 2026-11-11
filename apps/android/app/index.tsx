@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -28,6 +28,7 @@ export default function Home() {
   const [displayName, setDisplayName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [childName, setChildName] = useState("");
+  const [noticeDraft, setNoticeDraft] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
   const [busy, setBusy] = useState(false);
@@ -163,6 +164,29 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+
+  async function sendNotice(childId: string) {
+    if (!supabase) return;
+    const messageText = noticeDraft.trim();
+    if (!messageText || messageText.length > 200) return setMessage("יש לכתוב הודעה קצרה של עד 200 תווים.");
+    setBusy(true); setMessage("");
+    try {
+      const { data, error } = await supabase.functions.invoke("family-api", {
+        body: { action: "send_notice", childId, message: messageText },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        if (data.error === "no_active_devices") throw new Error("אין כרגע מכשירים פעילים בקבוצה.");
+        throw new Error("לא ניתן לשלוח את ההודעה לקבוצה.");
+      }
+      setMessage(`ההודעה נשלחה לתור עבור ${data.queued} מכשירים. היא תוצג כשהאפליקציה תהיה פתוחה.`);
+      setNoticeDraft("");
+      await loadOverview();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "שליחת ההודעה נכשלה.");
+    } finally { setBusy(false); }
+  }
+
   async function redeemChildPairing() {
     if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
     const code = pairingCodeInput.replace(/\s/g, "");
@@ -196,6 +220,50 @@ export default function Home() {
       setMessage(e instanceof Error ? e.message : "צימוד המכשיר נכשל.");
     } finally { setBusy(false); }
   }
+
+
+  useEffect(() => {
+    if (entryRole !== "device" || !hasSavedChildToken || !childDevice) return;
+    let alive = true;
+    let polling = false;
+    let token = "";
+    const poll = async () => {
+      if (!alive || polling || !token) return;
+      polling = true;
+      try {
+        const { data, error } = await supabase!.functions.invoke("device-command-api", {
+          headers: { Authorization: `Bearer ${token}` },
+          body: { action: "poll" },
+        });
+        if (!alive || error || !Array.isArray(data?.commands) || !data.commands.length) return;
+        const command = data.commands[0];
+        if (command?.command_type !== "show_notice" || typeof command?.id !== "string") return;
+        const text = typeof command.payload?.message === "string" ? command.payload.message.slice(0, 200) : "נשלחה הודעה מהמורה.";
+        Alert.alert("הודעה מהמורה", text, [{
+          text: "הבנתי",
+          onPress: () => {
+            void supabase!.functions.invoke("device-command-api", {
+              headers: { Authorization: `Bearer ${token}` },
+              body: { action: "acknowledge", commandId: command.id, result: "acknowledged" },
+            });
+          },
+        }], { cancelable: false });
+      } catch {
+        // The device retries on the next foreground poll.
+      } finally {
+        polling = false;
+      }
+    };
+    SecureStore.getItemAsync("steve-family-device-credential").then((stored) => {
+      if (!alive || !stored) return;
+      try {
+        token = JSON.parse(stored).token;
+        if (typeof token === "string" && token.length >= 32) void poll();
+      } catch { /* Invalid local credentials are handled by the pairing screen. */ }
+    });
+    const timer = setInterval(() => { void poll(); }, 12000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [entryRole, hasSavedChildToken, childDevice]);
 
   async function signOut() {
     if (!supabase) return;
@@ -308,6 +376,12 @@ export default function Home() {
                     <View style={{ flex: 1 }}>
                       <Text style={s.childName}>{child.nickname}</Text>
                       <Text style={s.small}>{child.devices.length ? child.devices.length + " מכשירים" : "עדיין לא צורף מכשיר"}</Text>
+                      {child.devices.length > 0 ? (
+                        <View style={{ marginTop: 10, gap: 8 }}>
+                          <Field label="הודעה גלויה למכשירים בקבוצה" value={noticeDraft} onChangeText={setNoticeDraft} placeholder="הודעה קצרה מהמורה" maxLength={200} />
+                          <Button title="שליחת הודעה למכשירים" onPress={() => sendNotice(child.id)} disabled={busy || !noticeDraft.trim()} busy={busy} />
+                        </View>
+                      ) : null}
                       {pairingCodes[child.id] ? (
                         <View style={s.pairCode}>
                           <Text style={s.pairCodeLabel}>קוד צימוד חד־פעמי · 10 ספרות · 10 דקות</Text>
