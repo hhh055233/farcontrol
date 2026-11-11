@@ -10,7 +10,7 @@ type Mode = "signup" | "signin";
 type EntryRole = "choose" | "teacher" | "device";
 type Family = {
   id: string; name: string; status: string;
-  children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string }> }>;
+  children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string; platform?: string; last_seen_at?: string | null }> }>;
   activity?: Array<{ id: number; event_type: string; created_at: string; details: Record<string, unknown> }>;
 };
 
@@ -29,6 +29,7 @@ export default function Home() {
   const [familyName, setFamilyName] = useState("");
   const [childName, setChildName] = useState("");
   const [noticeDraft, setNoticeDraft] = useState("");
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [families, setFamilies] = useState<Family[]>([]);
   const [busy, setBusy] = useState(false);
@@ -165,21 +166,36 @@ export default function Home() {
   }
 
 
-  async function sendNotice(childId: string) {
+  function toggleDeviceSelection(deviceId: string) {
+    setSelectedDeviceIds((current) => current.includes(deviceId)
+      ? current.filter((id) => id !== deviceId)
+      : [...current, deviceId].slice(0, 50));
+  }
+
+  function toggleGroupSelection(devices: Family["children"][number]["devices"]) {
+    const activeIds = devices.filter((device) => device.status === "active").map((device) => device.id);
+    const allSelected = activeIds.length > 0 && activeIds.every((id) => selectedDeviceIds.includes(id));
+    setSelectedDeviceIds((current) => allSelected
+      ? current.filter((id) => !activeIds.includes(id))
+      : [...new Set([...current, ...activeIds])].slice(0, 50));
+  }
+
+  async function sendNotice(childId: string, deviceIds?: string[]) {
     if (!supabase) return;
     const messageText = noticeDraft.trim();
     if (!messageText || messageText.length > 200) return setMessage("יש לכתוב הודעה קצרה של עד 200 תווים.");
     setBusy(true); setMessage("");
     try {
       const { data, error } = await supabase.functions.invoke("family-api", {
-        body: { action: "send_notice", childId, message: messageText },
+        body: { action: "send_notice", childId, message: messageText, ...(deviceIds?.length ? { deviceIds } : {}) },
       });
       if (error) throw error;
       if (data?.error) {
         if (data.error === "no_active_devices") throw new Error("אין כרגע מכשירים פעילים בקבוצה.");
         throw new Error("לא ניתן לשלוח את ההודעה לקבוצה.");
       }
-      setMessage(`ההודעה נשלחה לתור עבור ${data.queued} מכשירים. היא תוצג כשהאפליקציה תהיה פתוחה.`);
+      setMessage(`ההודעה הוכנסה לתור עבור ${data.queued} מכשירים. היא תוצג כשהאפליקציה תהיה פתוחה.`);
+      if (deviceIds?.length) setSelectedDeviceIds((current) => current.filter((id) => !deviceIds.includes(id)));
       setNoticeDraft("");
       await loadOverview();
     } catch (e) {
@@ -378,8 +394,29 @@ export default function Home() {
                       <Text style={s.small}>{child.devices.length ? child.devices.length + " מכשירים" : "עדיין לא צורף מכשיר"}</Text>
                       {child.devices.length > 0 ? (
                         <View style={{ marginTop: 10, gap: 8 }}>
-                          <Field label="הודעה גלויה למכשירים בקבוצה" value={noticeDraft} onChangeText={setNoticeDraft} placeholder="הודעה קצרה מהמורה" maxLength={200} />
-                          <Button title="שליחת הודעה למכשירים" onPress={() => sendNotice(child.id)} disabled={busy || !noticeDraft.trim()} busy={busy} />
+                          <Text style={s.small}>מכשירים בקבוצה · עד 50 מכשירים</Text>
+                          {child.devices.map((device) => {
+                            const selected = selectedDeviceIds.includes(device.id);
+                            const seenAt = device.last_seen_at ? Date.parse(device.last_seen_at) : 0;
+                            const online = device.status === "active" && seenAt > 0 && Date.now() - seenAt < 90000;
+                            return (
+                              <Pressable key={device.id} style={[s.deviceRow, selected && s.deviceRowSelected]} onPress={() => toggleDeviceSelection(device.id)}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={s.deviceName}>{device.device_label || "מכשיר Android"}</Text>
+                                  <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : "לא מחובר כרגע"}</Text>
+                                </View>
+                                <View style={[s.selectMark, selected && s.selectMarkActive]}><Text style={s.selectMarkText}>{selected ? "✓" : "+"}</Text></View>
+                              </Pressable>
+                            );
+                          })}
+                          <Pressable style={s.selectAll} onPress={() => toggleGroupSelection(child.devices)}>
+                            <Text style={s.selectAllText}>{child.devices.filter((device) => device.status === "active").every((device) => selectedDeviceIds.includes(device.id)) ? "בטל בחירת כל הקבוצה" : "בחר את כל המכשירים הפעילים בקבוצה"}</Text>
+                          </Pressable>
+                          <Field label="הודעה גלויה למכשירים" value={noticeDraft} onChangeText={setNoticeDraft} placeholder="הודעה קצרה מהמורה" maxLength={200} />
+                          {(() => {
+                            const selectedInGroup = child.devices.filter((device) => selectedDeviceIds.includes(device.id)).map((device) => device.id);
+                            return <Button title={selectedInGroup.length ? `שליחה ל־${selectedInGroup.length} מכשירים שנבחרו` : "שליחה לכל המכשירים הפעילים"} onPress={() => sendNotice(child.id, selectedInGroup)} disabled={busy || !noticeDraft.trim()} busy={busy} />;
+                          })()}
                         </View>
                       ) : null}
                       {pairingCodes[child.id] ? (
@@ -469,6 +506,14 @@ const s = StyleSheet.create({
   warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right" },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 7 },
   childRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 12, backgroundColor: C.panel2, borderRadius: 13 },
+  deviceRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 11, padding: 10 },
+  deviceRowSelected: { borderColor: C.blue, backgroundColor: "#1B2A49" },
+  deviceName: { color: C.text, fontSize: 12, fontWeight: "800", textAlign: "right" },
+  selectMark: { width: 28, height: 28, borderRadius: 9, borderWidth: 1, borderColor: C.line, alignItems: "center", justifyContent: "center" },
+  selectMarkActive: { backgroundColor: C.blue, borderColor: C.blue },
+  selectMarkText: { color: C.text, fontWeight: "900" },
+  selectAll: { alignSelf: "flex-end", paddingVertical: 7, paddingHorizontal: 10 },
+  selectAllText: { color: "#B8C8FF", fontSize: 11, fontWeight: "800" },
   childIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: C.bg, alignItems: "center", justifyContent: "center" },
   childName: { color: C.text, fontSize: 14, fontWeight: "800", textAlign: "right" },
   roleCard: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 14, backgroundColor: C.panel2, borderRadius: 14, borderWidth: 1, borderColor: C.line },
