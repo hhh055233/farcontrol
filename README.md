@@ -42,4 +42,10 @@ Web: `npm install && npm run dev`
 
 Android: `cd apps/android && npm install && npx expo start`
 
-CI runs web typecheck/build, Android TypeScript validation and Supabase Edge Function typechecking. A test APK can be built from the Android APK workflow in GitHub Actions.
+CI runs web typecheck/build, Android TypeScript validation and Supabase Edge Function typechecking.
+
+## Android test APK release
+- Open the GitHub Actions workflow named **Steve Control Android APK** and use **Run workflow** to build from the current `main` branch, or push a commit whose message contains `[build-apk]`.
+- Download the `steve-control-android-debug-apk` artifact from the completed workflow run.
+- This workflow creates a **debug/test APK**, not a Play Store production-signed release. Install and test it on a trusted Android device; do not distribute it as a production release.
+- Before any school rollout, verify Google sign-in, teacher authorization, device consent/pairing, visible notice delivery, and device revocation on physical devices.
