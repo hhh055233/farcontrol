@@ -409,7 +409,7 @@ export default function Home() {
               {hasSavedChildToken && childDevice ? (
                 <>
                   <Text style={s.sectionTitle}>המכשיר מחובר לכיתה</Text>
-                  <Text style={s.body}>המכשיר {childDevice.childName} צורף אל {childDevice.familyName} בהצלחה.</Text>
+                  <Text style={s.body}>המכשיר צורף לקבוצה {childDevice.childName} בכיתה {childDevice.familyName} בהצלחה.</Text>
                   <View style={s.notice}><Text style={s.noticeText}>פרטי הצימוד נשמרים באחסון המאובטח של Android. המורה יכול לראות שהמכשיר צורף ביומן הפעילות.</Text></View>
                   <Text style={s.small}>מזהה מכשיר: {childDevice.deviceId.slice(0, 8)}…</Text>
                 </>
