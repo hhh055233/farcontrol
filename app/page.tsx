@@ -33,6 +33,9 @@ export default function Home() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [joinStatus, setJoinStatus] = useState("");
+  const [joinRequests, setJoinRequests] = useState<Array<{id:string;email:string;display_name:string|null;status:string;requested_at:string;admin_note?:string|null}>>([]);
   const [noticeDrafts, setNoticeDrafts] = useState<Record<string, string>>({});
   const [pairings, setPairings] = useState<Record<string, Pairing>>({});
   const [busy, setBusy] = useState(false);
@@ -86,14 +89,93 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (session) void loadOverview();
-    else setClassrooms([]);
-  }, [session, loadOverview]);
+    if (session) void refreshAccess(session);
+    else {
+      setClassrooms([]);
+      setIsAdmin(false);
+      setJoinStatus("");
+      setJoinRequests([]);
+    }
+  }, [session]);
 
   const deviceCount = useMemo(
     () => classrooms.reduce((sum, room) => sum + room.children.reduce((n, group) => n + group.devices.length, 0), 0),
     [classrooms],
   );
+
+  async function signInWithGoogle() {
+    if (!supabase) return setError("החיבור לשרת עדיין לא הוגדר.");
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin, queryParams: { prompt: "select_account" } },
+      });
+      if (authError) throw authError;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "התחברות Google נכשלה.");
+      setBusy(false);
+    }
+  }
+
+  async function refreshAccess(currentSession: Session) {
+    if (!supabase) return;
+    const providers = currentSession.user.app_metadata?.providers;
+    const isGoogle = currentSession.user.app_metadata?.provider === "google" ||
+      (Array.isArray(providers) && providers.includes("google"));
+    if (!isGoogle) {
+      setIsAdmin(false);
+      setJoinStatus("");
+      await loadOverview();
+      return;
+    }
+    setLoading(true); setError("");
+    try {
+      const { data: adminData, error: adminError } = await supabase.functions.invoke("teacher-access-api", {
+        body: { action: "list_requests" },
+      });
+      if (!adminError && Array.isArray(adminData?.requests)) {
+        setIsAdmin(true);
+        setJoinStatus("");
+        setJoinRequests(adminData.requests);
+        setClassrooms([]);
+        return;
+      }
+      const { data: requestData, error: requestError } = await supabase.functions.invoke("teacher-access-api", {
+        body: { action: "submit_request", displayName: String(currentSession.user.user_metadata?.full_name ?? "") },
+      });
+      if (requestError || requestData?.error) throw new Error("לא הצלחנו לשלוח בקשת הצטרפות. ודאו שהתחברתם דרך Google ונסו שוב.");
+      const status = String(requestData?.request?.status ?? "pending");
+      setIsAdmin(false);
+      setJoinStatus(status);
+      setClassrooms([]);
+      if (status === "approved") await loadOverview();
+    } catch (e) {
+      setJoinStatus("error");
+      setError(e instanceof Error ? e.message : "בדיקת ההרשאה נכשלה.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function reviewTeacherRequest(requestId: string, status: "approved" | "rejected" | "revoked") {
+    if (!supabase) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("teacher-access-api", {
+        body: { action: "review_request", requestId, status },
+      });
+      if (invokeError || data?.error) throw new Error("לא ניתן לעדכן את בקשת המורה.");
+      const { data: refreshed, error: refreshError } = await supabase.functions.invoke("teacher-access-api", {
+        body: { action: "list_requests" },
+      });
+      if (refreshError || refreshed?.error) throw new Error("העדכון בוצע, אך רענון הרשימה נכשל.");
+      setJoinRequests(Array.isArray(refreshed?.requests) ? refreshed.requests : []);
+      setMessage(status === "approved" ? "המורה אושר/ה בהצלחה." : status === "rejected" ? "הבקשה נדחתה." : "הרשאת המורה בוטלה.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "עדכון ההרשאה נכשל.");
+    } finally { setBusy(false); }
+  }
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -168,13 +250,41 @@ export default function Home() {
         <section className="auth-card">
           <div className="eyebrow">כניסה מאובטחת למורה</div>
           <h1>שלום, ברוכים הבאים לסטיב קונטרול</h1>
-          <p>התחברו עם חשבון מורה קיים. אין כאן הרשמה פתוחה או יצירת חשבון מנהל אוטומטית.</p>
+          <p>מורים מתחברים עם חשבון Google. לאחר ההתחברות נשלחת בקשת הצטרפות שממתינה לאישור המנהל.</p>
+          <button type="button" className="button button-primary" disabled={busy} onClick={() => void signInWithGoogle()}>{busy ? "מתחברים…" : "המשך עם Google"}</button>
+          <p className="fine-print">התחברות Google תופעל לאחר הגדרת פרטי OAuth בפרויקט Supabase.</p>
+          <details>
+            <summary>כניסה לחשבונות קיימים</summary>
           <form onSubmit={signIn} className="login-form">
             <label>כתובת אימייל<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
             <label>סיסמה<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
             <button className="button button-primary" disabled={busy}>{busy ? "מתחברים…" : "כניסה לחשבון המורה"}</button>
           </form>
-          <p className="fine-print">יצירת חשבון ואישור הרשאת מורה יתבצעו בתהליך ההרשמה המאושר של בית הספר.</p>
+          <p className="fine-print">חשבונות קיימים שאושרו מראש יכולים להמשיך להשתמש בכניסה הישנה.</p>
+          </details>
+        </section>
+      ) : isAdmin ? (
+        <div className="dashboard">
+          <section className="welcome"><div><div className="eyebrow">ניהול הרשאות</div><h1>בקשות הצטרפות למורים</h1><p>רק חשבון המנהל המוגדר יכול לאשר או לבטל הרשאות.</p></div><button className="button button-secondary" onClick={() => void refreshAccess(session)} disabled={loading}>רענון</button></section>
+          <section className="classroom">
+            {joinRequests.length === 0 ? <div className="empty"><h2>אין בקשות עדיין</h2><p>בקשות חדשות ממורים יופיעו כאן לאחר התחברות Google.</p></div> : joinRequests.map(request => (
+              <article className="group-card" key={request.id}>
+                <div className="group-head"><div><h3>{request.display_name || "מורה ללא שם"}</h3><span>{request.email}</span><small>נשלחה: {new Date(request.requested_at).toLocaleString("he-IL")}</small></div><strong>{request.status === "pending" ? "ממתין לאישור" : request.status === "approved" ? "מאושר" : request.status === "rejected" ? "נדחה" : "בוטל"}</strong></div>
+                <div className="actions">
+                  {request.status !== "approved" && <button className="button button-primary" disabled={busy} onClick={() => void reviewTeacherRequest(request.id, "approved")}>אישור מורה</button>}
+                  {request.status === "pending" && <button className="button button-secondary" disabled={busy} onClick={() => void reviewTeacherRequest(request.id, "rejected")}>דחיית בקשה</button>}
+                  {request.status === "approved" && <button className="button button-secondary" disabled={busy} onClick={() => void reviewTeacherRequest(request.id, "revoked")}>ביטול הרשאה</button>}
+                </div>
+              </article>
+            ))}
+          </section>
+          <section className="limits"><strong>הגנת מנהל</strong><p>האישור מתבצע בשרת בלבד. התחברות Google לבדה אינה מעניקה הרשאת מורה; רק חשבון המנהל יכול לשנות את מצב הבקשה.</p></section>
+        </div>
+      ) : joinStatus && joinStatus !== "approved" ? (
+        <section className="auth-card">
+          <div className="eyebrow">בקשת הצטרפות</div>
+          <h1>{joinStatus === "pending" ? "הבקשה ממתינה לאישור" : joinStatus === "rejected" ? "הבקשה נדחתה" : "לא ניתן לבדוק את ההרשאה"}</h1>
+          <p>{joinStatus === "pending" ? "חשבון Google זוהה והבקשה נשלחה למנהל Steve Control. עד לאישור לא תהיה גישה לניהול מכשירים." : "פנו למנהל בית הספר לבירור ההרשאה."}</p>
         </section>
       ) : (
         <div className="dashboard">
