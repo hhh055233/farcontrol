@@ -7,7 +7,7 @@ import * as SecureStore from "expo-secure-store";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 type Mode = "signup" | "signin";
-type EntryRole = "choose" | "parent" | "child";
+type EntryRole = "choose" | "teacher" | "device";
 type Family = {
   id: string; name: string; status: string;
   children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string }> }>;
@@ -45,7 +45,7 @@ export default function Home() {
       body: { action: "overview" },
     });
     if (!error && data?.families) setFamilies(data.families as Family[]);
-    else if (error) setMessage("לא הצלחנו לטעון את נתוני המשפחה. נסו לרענן.");
+    else if (error) setMessage("לא הצלחנו לטעון את נתוני הכיתה. נסו לרענן.");
     setLoadingOverview(false);
   }, []);
 
@@ -56,7 +56,7 @@ export default function Home() {
       try {
         const parsed = JSON.parse(stored);
         if (typeof parsed?.token === "string" && typeof parsed?.deviceId === "string") {
-          setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "ילד"), familyName: String(parsed.familyName ?? "המשפחה") });
+          setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "מכשיר"), familyName: String(parsed.familyName ?? "הכיתה") });
           setHasSavedChildToken(true);
         }
       } catch { void SecureStore.deleteItemAsync("steve-family-device-credential"); }
@@ -96,7 +96,7 @@ export default function Home() {
         const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password });
         if (error) throw error;
         setMessage(data.session
-          ? "החשבון נוצר. אפשר להקים עכשיו את המשפחה."
+          ? "החשבון נוצר. אפשר להקים עכשיו את הכיתה."
           : "נשלח אימייל אישור. אשרו את הכתובת ואז התחברו.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
@@ -110,23 +110,23 @@ export default function Home() {
 
   async function createFamily() {
     if (!supabase) return;
-    if (!familyName.trim() || !displayName.trim()) return setMessage("יש למלא שם משפחה ושם הורה.");
+    if (!familyName.trim() || !displayName.trim()) return setMessage("יש למלא שם כיתה ושם מורה.");
     setBusy(true); setMessage("");
     try {
       const { data, error } = await supabase.functions.invoke("family-api", {
         body: { action: "create_family", name: familyName.trim(), displayName: displayName.trim() },
       });
       if (error) throw error;
-      setMessage("המשפחה נוצרה בהצלחה.");
+      setMessage("סביבת המורה נוצרה בהצלחה.");
       await loadOverview();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור משפחה.");
+      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור סביבת מורה.");
     } finally { setBusy(false); }
   }
 
   async function createChild() {
     if (!supabase) return;
-    if (!childName.trim()) return setMessage("יש להזין שם לילד.");
+    if (!childName.trim()) return setMessage("יש להזין שם למכשיר.");
     setBusy(true); setMessage("");
     try {
       const { data, error } = await supabase.functions.invoke("family-api", {
@@ -135,10 +135,10 @@ export default function Home() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setChildName("");
-      setMessage("פרופיל הילד נוצר. צימוד מכשיר יתווסף בשלב הבא.");
+      setMessage("קבוצה המכשיר נוצר. צימוד מכשיר יתווסף בשלב הבא.");
       await loadOverview();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור פרופיל.");
+      setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור קבוצה.");
     } finally { setBusy(false); }
   }
 
@@ -151,12 +151,12 @@ export default function Home() {
       });
       if (error) throw error;
       if (data?.error) {
-        if (data.error === "active_pairing_code_exists") throw new Error("כבר קיים קוד צימוד פעיל לילד הזה. המתינו עד שיפוג.");
-        if (data.error === "parent_family_required") throw new Error("נדרשת הרשאת הורה במשפחה.");
+        if (data.error === "active_pairing_code_exists") throw new Error("כבר קיים קוד צימוד פעיל למכשיר הזה. המתינו עד שיפוג.");
+        if (data.error === "parent_family_required") throw new Error("נדרשת הרשאת מורה בכיתה.");
         throw new Error("לא הצלחנו ליצור קוד צימוד.");
       }
       setPairingCodes((current) => ({ ...current, [childId]: { code: data.code, expiresAt: data.expiresAt } }));
-      setMessage("נוצר קוד צימוד חד־פעמי. הציגו אותו לילד באופן אישי.");
+      setMessage("נוצר קוד צימוד חד־פעמי. הציגו אותו למכשיר באופן אישי.");
       await loadOverview();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "יצירת קוד הצימוד נכשלה.");
@@ -175,7 +175,7 @@ export default function Home() {
       if (error) throw error;
       if (data?.error) {
         if (data.error === "too_many_attempts") throw new Error("בוצעו יותר מדי ניסיונות. המתינו 15 דקות ונסו שוב.");
-        if (data.error === "invalid_or_expired_code" || data.error === "invalid_code_format") throw new Error("הקוד שגוי או שפג תוקפו. בקשו מההורה קוד חדש.");
+        if (data.error === "invalid_or_expired_code" || data.error === "invalid_code_format") throw new Error("הקוד שגוי או שפג תוקפו. בקשו מהמורה קוד חדש.");
         throw new Error("לא הצלחנו לצמד את המכשיר כרגע.");
       }
       if (!data?.paired || typeof data.deviceToken !== "string" || typeof data.deviceId !== "string") {
@@ -184,14 +184,14 @@ export default function Home() {
       const stored = {
         token: data.deviceToken,
         deviceId: data.deviceId,
-        childName: String(data.childName ?? "ילד"),
-        familyName: String(data.familyName ?? "המשפחה"),
+        childName: String(data.childName ?? "מכשיר"),
+        familyName: String(data.familyName ?? "הכיתה"),
       };
       await SecureStore.setItemAsync("steve-family-device-credential", JSON.stringify(stored));
       setChildDevice({ deviceId: stored.deviceId, childName: stored.childName, familyName: stored.familyName });
       setHasSavedChildToken(true);
       setPairingCodeInput("");
-      setMessage("המכשיר צורף בהצלחה למשפחה. פרטי הגישה נשמרו באחסון המאובטח של Android.");
+      setMessage("המכשיר צורף בהצלחה לכיתה. פרטי הגישה נשמרו באחסון המאובטח של Android.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "צימוד המכשיר נכשל.");
     } finally { setBusy(false); }
@@ -222,9 +222,9 @@ export default function Home() {
 
           <View style={s.hero}>
             <Text style={s.eyebrow}>שליטה חכמה במכשירים</Text>
-            <Text style={s.title}>{userEmail ? "המשפחה שלכם" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "child" ? "כניסת ילד" : "כניסת הורה"}</Text>
+            <Text style={s.title}>{userEmail ? "לוח הבקרה של המורה" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "device" ? "כניסת מכשיר" : "כניסת מורה"}</Text>
             <Text style={s.subtitle}>
-              {userEmail ? "ניהול המשפחה והפרופילים דרך חיבור מאובטח." : entryRole === "choose" ? "בחרו איך להיכנס ל‑Steve Control." : entryRole === "child" ? "כניסה למכשיר ילד לאחר צימוד מאובטח." : "יוצרים חשבון הורה מאובטח או מתחברים לחשבון קיים."}
+              {userEmail ? "הניהול נשמר בחשבון המורה ומסתנכרן אוטומטית." : entryRole === "choose" ? "המורה מתחבר פעם אחת. מכשירים מצטרפים באמצעות קוד צימוד." : entryRole === "device" ? "רישום מכשיר שאושר על ידי המורה." : "יוצרים חשבון מורה או מתחברים לחשבון קיים."}
             </Text>
           </View>
 
@@ -237,37 +237,37 @@ export default function Home() {
 
           {!userEmail && entryRole === "choose" ? (
             <Panel>
-              <Text style={s.sectionTitle}>איך תרצו להיכנס?</Text>
-              <Pressable style={s.roleCard} onPress={() => setEntryRole("parent")}>
+              <Text style={s.sectionTitle}>ברוכים הבאים ל‑Steve Control</Text>
+              <Pressable style={s.roleCard} onPress={() => setEntryRole("teacher")}>
                 <View style={s.roleIcon}><Text style={s.roleEmoji}>👨‍👩‍👧</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.roleTitle}>כניסת הורה</Text>
-                  <Text style={s.small}>ניהול המשפחה, הגדרות ודוחות פעילות</Text>
+                  <Text style={s.roleTitle}>כניסת מורה</Text>
+                  <Text style={s.small}>ניהול כיתות, מכשירים והרשאות</Text>
                 </View>
                 <Text style={s.roleArrow}>‹</Text>
               </Pressable>
-              <Pressable style={s.roleCard} onPress={() => setEntryRole("child")}>
+              <Pressable style={s.roleCard} onPress={() => setEntryRole("device")}>
                 <View style={s.roleIcon}><Text style={s.roleEmoji}>🧒</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.roleTitle}>כניסת ילד</Text>
-                  <Text style={s.small}>כניסה למכשיר שצורף על ידי ההורה</Text>
+                  <Text style={s.roleTitle}>כניסת מכשיר</Text>
+                  <Text style={s.small}>רישום מכשיר לכיתה באמצעות קוד</Text>
                 </View>
                 <Text style={s.roleArrow}>‹</Text>
               </Pressable>
             </Panel>
-          ) : !userEmail && entryRole === "child" ? (
+          ) : !userEmail && entryRole === "device" ? (
             <Panel>
               {hasSavedChildToken && childDevice ? (
                 <>
-                  <Text style={s.sectionTitle}>המכשיר מחובר למשפחה</Text>
+                  <Text style={s.sectionTitle}>המכשיר מחובר לכיתה</Text>
                   <Text style={s.body}>היי {childDevice.childName}. המכשיר הזה צורף אל {childDevice.familyName} בהצלחה.</Text>
-                  <View style={s.notice}><Text style={s.noticeText}>פרטי הצימוד נשמרים באחסון המאובטח של Android. ההורה יכול לראות שהמכשיר צורף ביומן הפעילות.</Text></View>
+                  <View style={s.notice}><Text style={s.noticeText}>פרטי הצימוד נשמרים באחסון המאובטח של Android. המורה יכול לראות שהמכשיר צורף ביומן הפעילות.</Text></View>
                   <Text style={s.small}>מזהה מכשיר: {childDevice.deviceId.slice(0, 8)}…</Text>
                 </>
               ) : (
                 <>
-                  <Text style={s.sectionTitle}>חיבור מכשיר ילד</Text>
-                  <Text style={s.body}>בקשו מההורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
+                  <Text style={s.sectionTitle}>חיבור מכשיר מכשיר</Text>
+                  <Text style={s.body}>בקשו מהמורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
                   <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="0000000000" keyboardType="numeric" maxLength={10} />
                   <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
                   <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
@@ -283,26 +283,26 @@ export default function Home() {
               </View>
               <Field label="אימייל" value={email} onChangeText={setEmail} placeholder="name@example.com" />
               <Field label="סיסמה" value={password} onChangeText={setPassword} placeholder="לפחות 8 תווים" secure />
-              <Button title={mode === "signup" ? "יצירת חשבון הורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
+              <Button title={mode === "signup" ? "יצירת חשבון מורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
             </Panel>
           ) : loadingOverview ? (
-            <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>טוענים את המשפחה...</Text></Panel>
+            <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>טוענים את הכיתה...</Text></Panel>
           ) : !family ? (
             <Panel>
-              <Text style={s.sectionTitle}>הקמת המשפחה הראשונה</Text>
-              <Field label="שם המשפחה" value={familyName} onChangeText={setFamilyName} placeholder="משפחת ישראלי" />
-              <Field label="השם שיוצג להורה" value={displayName} onChangeText={setDisplayName} placeholder="שם ההורה" />
-              <Button title="יצירת משפחה" onPress={createFamily} disabled={busy} busy={busy} />
-              <Text style={s.small}>המשפחה תיווצר בחשבון ההורה המחובר. הזמנת הורה נוסף תתווסף בהמשך.</Text>
+              <Text style={s.sectionTitle}>הקמת סביבת ההוראה</Text>
+              <Field label="שם הכיתה או בית הספר" value={familyName} onChangeText={setFamilyName} placeholder="כיתה ז׳1" />
+              <Field label="שם המורה" value={displayName} onChangeText={setDisplayName} placeholder="שם המורה" />
+              <Button title="יצירת כיתה" onPress={createFamily} disabled={busy} busy={busy} />
+              <Text style={s.small}>סביבת הניהול תישמר בחשבון המורה. ההתחברות נשמרת במכשיר באופן אוטומטי.</Text>
             </Panel>
           ) : (
             <>
               <Panel>
                 <Text style={s.sectionTitle}>{family.name}</Text>
-                <Text style={s.small}>המשפחה פעילה · חשבון: {userEmail}</Text>
+                <Text style={s.small}>סביבת המורה פעילה · חשבון: {userEmail}</Text>
                 <View style={s.divider} />
-                <Text style={s.sectionTitle}>ילדים</Text>
-                {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוצרו פרופילי ילדים.</Text> : family.children.map((child) => (
+                <Text style={s.sectionTitle}>מכשירים וקבוצות</Text>
+                {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוצרו קבוצהי מכשירים וקבוצות.</Text> : family.children.map((child) => (
                   <View key={child.id} style={s.childRow}>
                     <View style={s.childIcon}><Text style={{ color: C.mint, fontWeight: "900" }}>●</Text></View>
                     <View style={{ flex: 1 }}>
@@ -324,16 +324,16 @@ export default function Home() {
                 ))}
               </Panel>
               <Panel>
-                <Text style={s.sectionTitle}>הוספת פרופיל ילד</Text>
-                <Field label="שם או כינוי" value={childName} onChangeText={setChildName} placeholder="שם הילד" />
-                <Button title="הוספת ילד" onPress={createChild} disabled={busy} busy={busy} />
+                <Text style={s.sectionTitle}>הוספת מכשיר לקבוצה</Text>
+                <Field label="שם המכשיר או התלמיד" value={childName} onChangeText={setChildName} placeholder="טאבלט כיתה 1" />
+                <Button title="הוספת מכשיר" onPress={createChild} disabled={busy} busy={busy} />
               </Panel>
               <Panel>
                 <Text style={s.sectionTitle}>פעילות אחרונה</Text>
                 {family.activity?.length ? family.activity.map((event) => (
                   <View key={event.id} style={s.activityRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה משפחה" : event.event_type === "child.created" ? "נוצר פרופיל ילד" : event.event_type === "device.paired" ? "מכשיר ילד צורף למשפחה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
+                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה כיתה" : event.event_type === "child.created" ? "נוצר קבוצה מכשיר" : event.event_type === "device.paired" ? "מכשיר מכשיר צורף לכיתה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
                       <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
                     </View>
                     <View style={s.activityDot} />
@@ -343,16 +343,16 @@ export default function Home() {
               </Panel>
               <Panel>
                 <Text style={s.sectionTitle}>השלבים הבאים</Text>
-                <Text style={s.body}>• הזמנת הורה נוסף בהרשאות שוות</Text>
-                <Text style={s.body}>• צימוד מאובטח של מכשיר הילד</Text>
-                <Text style={s.body}>• סנכרון מדיניות ודוחות לאחר בדיקות</Text>
+                <Text style={s.body}>• הזמנת מורה נוסף בהרשאות שוות</Text>
+                <Text style={s.body}>• צימוד מאובטח של מכשיר המכשיר</Text>
+                <Text style={s.body}>• ניהול מספר מכשירים במקביל לאחר בדיקות הרשאות</Text>
               </Panel>
             </>
           )}
 
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
           {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
-          {!userEmail && entryRole === "parent" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
+          {!userEmail && entryRole === "teacher" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
           <Text style={s.footer}>STEVE CONTROL · הצגת מידע שקוף בלבד; הגבלות מכשיר יופעלו רק לאחר צימוד והרשאות מתאימות.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
