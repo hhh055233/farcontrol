@@ -1,0 +1,39 @@
+name: Android code validation
+
+on:
+  push:
+    branches:
+      - feature/secure-family-backend
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  android-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install app dependencies
+        working-directory: apps/android
+        run: npm install --no-audit --no-fund
+
+      - name: TypeScript check
+        working-directory: apps/android
+        run: npx tsc --noEmit
+
+      - name: Generate Android project
+        working-directory: apps/android
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: npx expo prebuild --platform android --no-install

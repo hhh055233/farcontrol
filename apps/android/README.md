@@ -1,24 +1,34 @@
 # Steve Family Android app
 
-Expo / React Native Android-first app shell.
+Android-first Expo / React Native application.
 
-## Run locally
+## Local setup
+
 ```bash
 cd apps/android
 npm install
+cp .env.example .env
 npx expo start
 ```
 
-Scan the QR code with Expo Go for UI preview. This is not a production device-management app.
+The app contains the public Supabase project URL and publishable key as safe client configuration defaults. You may override them with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase `service_role` or secret key in the mobile app.
 
-## Current scope
-- Parent/child role preview screens.
-- RTL Hebrew interface.
-- Family-name and pairing-code input prototypes.
-- Explicit demo messaging; no account is created and no pairing request is sent.
+## Implemented in this branch
 
-## Not implemented yet
-Authentication, database/API connection, real invitation/pairing, device credentials, policy sync, app-usage access, location, notifications, or device restrictions. Do not enter real personal data in this prototype.
+- Hebrew RTL-oriented Android parent sign-up and sign-in screens.
+- Supabase Auth with persistent local session storage via Expo SQLite.
+- Deployed Supabase Edge Function `family-api`, with JWT verification enabled.
+- Server actions: `create_family`, `create_child`, and `overview`.
+- Parent can create one family and child profiles; the app can load those records.
+- Server-side database RPCs create the family/member and child/member/audit records transactionally.
+- RLS and function privileges prevent direct client writes and direct pairing-code access.
 
-## Android capability and privacy
-Only add device capabilities through documented Android APIs and visible permission flows. Do not use hidden monitoring or attempt to bypass OS restrictions. Any production rollout requires privacy review, Play policy review, and real-device tests.
+## Not yet implemented / not yet verified
+
+- Second-parent invitation and acceptance.
+- Child-device pairing, device credentials, heartbeat, and policy sync.
+- Actual Android device controls, usage reports, location sharing, or notifications.
+- Automated TypeScript check, APK build, installation, and real-device test. No APK has been built yet.
+- End-to-end test using a real, verified parent account.
+
+No device restrictions or hidden monitoring are active. Implement device capabilities only through documented Android APIs, visible permission flows, and transparent enrollment. Do not describe this as a completed parental-control app until each capability is implemented and tested.

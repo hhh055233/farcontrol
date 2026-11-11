@@ -1,8 +1,12 @@
--- Steve Family initial PostgreSQL schema
--- Apply only after provisioning a managed PostgreSQL database and configuring auth.uid().
--- All tenant-owned rows carry family_id. RLS is defense in depth; API authorization is still required.
+-- Steve Family secure initial schema for Supabase.
+-- Client writes are intentionally disabled: privileged changes must go through
+-- authenticated Edge Functions that validate parent/device credentials and audit changes.
 
 create extension if not exists pgcrypto;
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to authenticated;
 
 create type public.family_role as enum ('parent', 'child');
 create type public.family_status as enum ('active', 'suspended');
@@ -17,7 +21,6 @@ create table public.families (
   updated_at timestamptz not null default now()
 );
 
--- auth_user_id is the stable ID supplied by the chosen identity provider.
 create table public.family_members (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,
@@ -29,7 +32,6 @@ create table public.family_members (
   unique (family_id, auth_user_id),
   unique (id, family_id)
 );
-
 create index family_members_user_idx on public.family_members(auth_user_id, is_active);
 create index family_members_family_role_idx on public.family_members(family_id, role);
 
@@ -60,7 +62,6 @@ create table public.devices (
   unique (id, family_id),
   foreign key (child_profile_id, family_id) references public.child_profiles(id, family_id) on delete cascade
 );
-
 create index devices_family_status_idx on public.devices(family_id, status);
 create index devices_child_idx on public.devices(child_profile_id);
 create index devices_last_seen_idx on public.devices(last_seen_at);
@@ -78,7 +79,6 @@ create table public.pairing_codes (
   foreign key (child_profile_id, family_id) references public.child_profiles(id, family_id) on delete cascade,
   foreign key (created_by_member_id, family_id) references public.family_members(id, family_id) on delete cascade
 );
-
 create index pairing_codes_family_expiry_idx on public.pairing_codes(family_id, expires_at) where status = 'pending';
 
 create table public.device_policies (
@@ -93,7 +93,6 @@ create table public.device_policies (
   foreign key (child_profile_id, family_id) references public.child_profiles(id, family_id) on delete cascade,
   foreign key (created_by_member_id, family_id) references public.family_members(id, family_id) on delete restrict
 );
-
 create index device_policies_latest_idx on public.device_policies(child_profile_id, version desc);
 
 create table public.audit_events (
@@ -107,17 +106,28 @@ create table public.audit_events (
   foreign key (actor_member_id, family_id) references public.family_members(id, family_id) on delete restrict,
   foreign key (subject_child_id, family_id) references public.child_profiles(id, family_id) on delete restrict
 );
-
 create index audit_events_family_time_idx on public.audit_events(family_id, created_at desc);
 
--- RLS helper: current authenticated user must be an active member of this family.
-create or replace function public.is_family_member(target_family_id uuid)
-returns boolean language sql stable security definer set search_path = public as $$
+-- These SECURITY DEFINER helpers live outside the exposed public schema.
+-- Their fixed empty search_path and fully-qualified references prevent object shadowing.
+create or replace function private.is_family_parent(target_family_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
   select exists (
-    select 1 from public.family_members fm
-    where fm.family_id = target_family_id and fm.auth_user_id = auth.uid() and fm.is_active = true
+    select 1
+    from public.family_members fm
+    where fm.family_id = target_family_id
+      and fm.auth_user_id = auth.uid()
+      and fm.role = 'parent'::public.family_role
+      and fm.is_active = true
   );
 $$;
+revoke all on function private.is_family_parent(uuid) from public, anon;
+grant execute on function private.is_family_parent(uuid) to authenticated;
 
 alter table public.families enable row level security;
 alter table public.family_members enable row level security;
@@ -127,15 +137,31 @@ alter table public.pairing_codes enable row level security;
 alter table public.device_policies enable row level security;
 alter table public.audit_events enable row level security;
 
-create policy family_members_read_family on public.families for select using (public.is_family_member(id));
-create policy members_read_same_family on public.family_members for select using (public.is_family_member(family_id));
-create policy children_read_same_family on public.child_profiles for select using (public.is_family_member(family_id));
-create policy devices_read_same_family on public.devices for select using (public.is_family_member(family_id));
-create policy policies_read_same_family on public.device_policies for select using (public.is_family_member(family_id));
-create policy audit_read_same_family on public.audit_events for select using (public.is_family_member(family_id));
+-- Only authenticated parents can read family-wide information.
+create policy families_parent_read on public.families
+  for select to authenticated
+  using (private.is_family_parent(id));
+create policy family_members_parent_read on public.family_members
+  for select to authenticated
+  using (private.is_family_parent(family_id));
+create policy child_profiles_parent_read on public.child_profiles
+  for select to authenticated
+  using (private.is_family_parent(family_id));
+create policy devices_parent_read on public.devices
+  for select to authenticated
+  using (private.is_family_parent(family_id));
+create policy device_policies_parent_read on public.device_policies
+  for select to authenticated
+  using (private.is_family_parent(family_id));
+create policy audit_events_parent_read on public.audit_events
+  for select to authenticated
+  using (private.is_family_parent(family_id));
 
--- Pairing codes are deliberately NOT directly readable by client roles.
--- Create/redeem/revoke pairing codes only through server-side API with parent-role checks,
--- rate limits, one-time redemption, and hashed code storage.
--- Writes to policies/devices/members/audit_events must likewise go through
--- server-side authorization and audited transactions.
+-- No direct client access to pairing codes, credential hashes, or write operations.
+revoke all on all tables in schema public from anon, authenticated;
+grant select on public.families, public.family_members, public.child_profiles,
+  public.devices, public.device_policies, public.audit_events to authenticated;
+
+-- Family creation, parent invitations, child creation, pairing, device sync,
+-- policy updates and audit writes must be implemented in server-side functions.
+-- Never ship the service_role key or device credential hashes to an Android client.

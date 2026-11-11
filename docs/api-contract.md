@@ -1,6 +1,6 @@
-# Steve Family API contract (v1 draft)
+# Steve Family API contract (v1)
 
-This is the contract for the first secure vertical slice. It is a specification, not a claim that these endpoints are deployed.
+The deployed Supabase Edge Function is `/functions/v1/family-api` (JWT verification enabled). It accepts POST JSON bodies with `action` set to `create_family`, `create_child`, or `overview`. The REST-style routes below remain a target contract for future versioning; only the three actions explicitly marked implemented are deployed.
 
 ## Rules for every request
 - Parent endpoints require a valid authenticated parent session and an active family membership with role parent.
@@ -12,7 +12,7 @@ This is the contract for the first secure vertical slice. It is a specification,
 
 ## Parent and family
 
-### POST /api/v1/families
+### POST /api/v1/families — implemented as `action: create_family`
 Create the first family for the authenticated user. The server creates the family and adds the caller as a parent in one transaction.
 
 Request: { name: string }
@@ -31,7 +31,7 @@ Response: { familyId, member: { id, role: 'parent' } }
 
 ## Child profile and device pairing
 
-### POST /api/v1/children
+### POST /api/v1/children — implemented as `action: create_child`
 Create a child profile within the caller's family.
 
 Request: { nickname: string }
@@ -72,8 +72,8 @@ Response: { accepted, rejected, nextUploadAfter }
 
 ## Parent dashboard
 
-### GET /api/v1/family/overview
-Return only the authenticated parent's family, parent accounts, child profiles, enrolled devices, latest policy versions, and report freshness metadata.
+### GET /api/v1/family/overview — implemented as `action: overview`
+Return only the authenticated parent's family, child profiles, and enrolled-device metadata. Parent invitation metadata and reporting freshness are not implemented yet.
 
 ### PUT /api/v1/children/{childId}/policy
 Validate a policy against the supported feature set for the enrolled Android app/API level. Increment policy version and create an audit event atomically.
@@ -93,5 +93,5 @@ Return paginated, tenant-scoped events. Redact sensitive details and do not expo
 - 429: rate limit exceeded; include Retry-After.
 - 500: generic server error with a request ID; never expose SQL or secrets.
 
-## First implementation slice
-Implement only: parent authentication, create family, invite/accept second parent, create child, create/redeem pairing code, device heartbeat, and family overview. Keep feature enforcement out of scope until Android capability checks and device tests are complete.
+## Implementation status
+Implemented: parent authentication through Supabase Auth, create family, create child, and family overview. Not implemented: invite/accept second parent, pairing, device heartbeat, policy sync, reports, or device enforcement. Keep feature enforcement out of scope until Android capability checks and device tests are complete.
