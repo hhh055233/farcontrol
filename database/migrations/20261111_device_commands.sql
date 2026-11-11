@@ -18,3 +18,12 @@ create index if not exists device_commands_device_status_idx
   on public.device_commands(device_id, status, created_at);
 alter table public.device_commands enable row level security;
 revoke all on public.device_commands from anon, authenticated;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'device_commands' and policyname = 'device_commands_explicit_deny') then
+    create policy device_commands_explicit_deny on public.device_commands
+      for all to anon, authenticated using (false) with check (false);
+  end if;
+end
+$$;
