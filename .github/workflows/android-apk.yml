@@ -2,12 +2,15 @@ name: Steve Control Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
   build-apk:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build-apk]')
     name: Build installable Android debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 35
