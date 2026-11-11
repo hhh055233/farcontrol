@@ -137,7 +137,7 @@ export default function Home() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setChildName("");
-      setMessage("פרופיל המכשיר נוצר. אפשר ליצור עבורו קוד צימוד.");
+      setMessage("הקבוצה נוצרה. אפשר ליצור עבורה קוד צימוד.");
       await loadOverview();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור קבוצה.");
@@ -154,7 +154,7 @@ export default function Home() {
       if (error) throw error;
       if (data?.error) {
         if (data.error === "active_pairing_code_exists") throw new Error("כבר קיים קוד צימוד פעיל למכשיר הזה. המתינו עד שיפוג.");
-        if (data.error === "parent_family_required") throw new Error("נדרשת הרשאת מורה בכיתה.");
+        if (data.error === "teacher_family_required") throw new Error("נדרשת הרשאת מורה בכיתה.");
         throw new Error("לא הצלחנו ליצור קוד צימוד.");
       }
       setPairingCodes((current) => ({ ...current, [childId]: { code: data.code, expiresAt: data.expiresAt } }));
@@ -444,7 +444,7 @@ export default function Home() {
                 {family.activity?.length ? family.activity.map((event) => (
                   <View key={event.id} style={s.activityRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה כיתה" : event.event_type === "child.created" ? "נוצר פרופיל מכשיר" : event.event_type === "device.paired" ? "מכשיר צורף לכיתה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
+                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה כיתה" : event.event_type === "device_group.created" ? "נוצרה קבוצת מכשירים" : event.event_type === "device.paired" ? "מכשיר צורף לכיתה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
                       <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
                     </View>
                     <View style={s.activityDot} />
