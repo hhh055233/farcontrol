@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
+  ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Platform, Pressable,
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -60,6 +60,7 @@ export default function Home() {
         if (typeof parsed?.token === "string" && typeof parsed?.deviceId === "string") {
           setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "מכשיר"), familyName: String(parsed.familyName ?? "הכיתה") });
           setHasSavedChildToken(true);
+          setEntryRole("device");
         }
       } catch { void SecureStore.deleteItemAsync("steve-family-device-credential"); }
     }).catch(() => { if (alive) setMessage("לא ניתן לקרוא את פרטי הצימוד המאובטחים במכשיר."); });
@@ -86,6 +87,24 @@ export default function Home() {
     });
     return () => { alive = false; data.subscription.unsubscribe(); };
   }, [loadOverview]);
+
+  useEffect(() => {
+    if (!userEmail) return;
+    const timer = setInterval(() => {
+      if (AppState.currentState === "active") void loadOverview();
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [userEmail, loadOverview]);
+
+  async function resendVerification() {
+    if (!supabase) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!/^\\S+@\\S+\\.\\S+$/.test(cleanEmail)) return setMessage("הזינו קודם כתובת אימייל תקינה.");
+    setBusy(true); setMessage("");
+    const { error } = await supabase.auth.resend({ type: "signup", email: cleanEmail });
+    setMessage(error ? "לא הצלחנו לשלוח אימות חוזר. נסו שוב מאוחר יותר." : "נשלח שוב אימייל אימות לכתובת שהזנתם.");
+    setBusy(false);
+  }
 
   async function submitAuth() {
     if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
@@ -290,6 +309,8 @@ export default function Home() {
   }
 
   const family = families[0];
+  const totalDevices = family?.children.reduce((sum, group) => sum + group.devices.length, 0) ?? 0;
+  const activeDevices = family?.children.reduce((sum, group) => sum + group.devices.filter((device) => device.status === "active").length, 0) ?? 0;
 
   return (
     <SafeAreaView style={s.safe}>
@@ -299,13 +320,13 @@ export default function Home() {
             <View style={s.logo}><Text style={s.logoText}>S</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={s.brand}>Steve<Text style={{ color: C.blue }}> Control</Text></Text>
-              <Text style={s.tag}>שליטה מרחוק גלויה ומאובטחת</Text>
+              <Text style={s.tag}>ניהול גלוי ומאובטח של מכשירים</Text>
             </View>
             <Text style={s.platform}>ANDROID</Text>
           </View>
 
           <View style={s.hero}>
-            <Text style={s.eyebrow}>שליטה חכמה במכשירים</Text>
+            <Text style={s.eyebrow}>ניהול חכם של מכשירים</Text>
             <Text style={s.title}>{userEmail ? "לוח הבקרה של המורה" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "device" ? "כניסת מכשיר" : "כניסת מורה"}</Text>
             <Text style={s.subtitle}>
               {userEmail ? "הניהול נשמר בחשבון המורה ומסתנכרן אוטומטית." : entryRole === "choose" ? "המורה מתחבר פעם אחת. מכשירים מצטרפים באמצעות קוד צימוד." : entryRole === "device" ? "רישום מכשיר שאושר על ידי המורה." : "יוצרים חשבון מורה או מתחברים לחשבון קיים."}
@@ -368,6 +389,7 @@ export default function Home() {
               <Field label="אימייל" value={email} onChangeText={setEmail} placeholder="name@example.com" />
               <Field label="סיסמה" value={password} onChangeText={setPassword} placeholder="לפחות 8 תווים" secure />
               <Button title={mode === "signup" ? "יצירת חשבון מורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
+              {mode === "signup" ? <Pressable style={s.selectAll} onPress={resendVerification} disabled={busy}><Text style={s.selectAllText}>שליחה חוזרת של אימייל אימות</Text></Pressable> : null}
             </Panel>
           ) : loadingOverview ? (
             <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>טוענים את הכיתה...</Text></Panel>
@@ -385,7 +407,8 @@ export default function Home() {
                 <Text style={s.sectionTitle}>{family.name}</Text>
                 <Text style={s.small}>סביבת המורה פעילה · חשבון: {userEmail}</Text>
                 <View style={s.divider} />
-                <Text style={s.sectionTitle}>מכשירים וקבוצות</Text>
+                <View style={s.sectionHeader}><Text style={s.sectionTitle}>מכשירים וקבוצות</Text><Pressable onPress={() => void loadOverview()} disabled={loadingOverview}><Text style={s.selectAllText}>{loadingOverview ? "מרענן..." : "רענון"}</Text></Pressable></View>
+                <Text style={s.small}>{totalDevices} מכשירים רשומים · {activeDevices} פעילים</Text>
                 {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוספו מכשירים או קבוצות.</Text> : family.children.map((child) => (
                   <View key={child.id} style={s.childRow}>
                     <View style={s.childIcon}><Text style={{ color: C.mint, fontWeight: "900" }}>●</Text></View>
@@ -403,7 +426,7 @@ export default function Home() {
                               <Pressable key={device.id} disabled={device.status !== "active"} style={[s.deviceRow, selected && s.deviceRowSelected, device.status !== "active" && { opacity: 0.55 }]} onPress={() => toggleDeviceSelection(device.id)}>
                                 <View style={{ flex: 1 }}>
                                   <Text style={s.deviceName}>{device.device_label || "מכשיר Android"}</Text>
-                                  <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : "לא מחובר כרגע"}</Text>
+                                  <Text style={s.small}>{device.platform === "android" ? "Android" : device.platform || "מכשיר"} · {online ? "פעיל עכשיו" : device.status === "revoked" ? "הגישה בוטלה" : device.status === "pending" ? "ממתין לצימוד" : "לא מחובר כרגע"}</Text>
                                 </View>
                                 <View style={[s.selectMark, selected && s.selectMarkActive]}><Text style={s.selectMarkText}>{selected ? "✓" : "+"}</Text></View>
                               </Pressable>
@@ -424,6 +447,7 @@ export default function Home() {
                           <Text style={s.pairCodeLabel}>קוד צימוד חד־פעמי · 10 ספרות · 10 דקות</Text>
                           <Text selectable style={s.pairCodeValue}>{pairingCodes[child.id].code}</Text>
                           <Text style={s.small}>תוקף עד {new Date(pairingCodes[child.id].expiresAt).toLocaleTimeString("he-IL")}</Text>
+                          <Pressable style={s.pairButton} onPress={() => createPairingCode(child.id)} disabled={busy}><Text style={s.pairButtonText}>הפקת קוד למכשיר הבא</Text></Pressable>
                         </View>
                       ) : (
                         <Pressable style={s.pairButton} onPress={() => createPairingCode(child.id)} disabled={busy}>
@@ -505,6 +529,7 @@ const s = StyleSheet.create({
   small: { color: C.muted, fontSize: 11, lineHeight: 18, textAlign: "right" },
   warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right" },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 7 },
+  sectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   childRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 12, backgroundColor: C.panel2, borderRadius: 13 },
   deviceRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, backgroundColor: C.bg, borderWidth: 1, borderColor: C.line, borderRadius: 11, padding: 10 },
   deviceRowSelected: { borderColor: C.blue, backgroundColor: "#1B2A49" },
