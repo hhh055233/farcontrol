@@ -67,6 +67,7 @@ export default function Home() {
   const [deviceLabel, setDeviceLabel] = useState("");
   const [childDevice, setChildDevice] = useState<{ deviceId: string; childName: string; familyName: string } | null>(null);
   const [hasSavedChildToken, setHasSavedChildToken] = useState(false);
+  const [deviceEnrollmentLoaded, setDeviceEnrollmentLoaded] = useState(false);
   const [accessStatus, setAccessStatus] = useState<"unknown" | "pending" | "approved" | "admin" | "error">("unknown");
 
   const loadOverview = useCallback(async () => {
@@ -93,17 +94,32 @@ export default function Home() {
 
   useEffect(() => {
     let alive = true;
-    SecureStore.getItemAsync("steve-family-device-credential").then((stored) => {
-      if (!alive || !stored) return;
+    const loadDeviceEnrollment = async () => {
       try {
-        const parsed = JSON.parse(stored);
-        if (typeof parsed?.token === "string" && typeof parsed?.deviceId === "string") {
-          setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "מכשיר"), familyName: String(parsed.familyName ?? "הכיתה") });
-          setHasSavedChildToken(true);
-          setEntryRole("device");
+        const stored = await SecureStore.getItemAsync("steve-family-device-credential");
+        if (!alive) return;
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (typeof parsed?.token === "string" && parsed.token.length >= 32 &&
+                typeof parsed?.deviceId === "string" && parsed.deviceId.length > 0) {
+              setChildDevice({ deviceId: parsed.deviceId, childName: String(parsed.childName ?? "מכשיר"), familyName: String(parsed.familyName ?? "הכיתה") });
+              setHasSavedChildToken(true);
+              setEntryRole("device");
+            } else {
+              await SecureStore.deleteItemAsync("steve-family-device-credential");
+            }
+          } catch {
+            await SecureStore.deleteItemAsync("steve-family-device-credential");
+          }
         }
-      } catch { void SecureStore.deleteItemAsync("steve-family-device-credential"); }
-    }).catch(() => { if (alive) setMessage("לא ניתן לקרוא את פרטי הצימוד המאובטחים במכשיר."); });
+      } catch {
+        if (alive) setMessage("לא ניתן לקרוא את פרטי הצימוד המאובטחים במכשיר.");
+      } finally {
+        if (alive) setDeviceEnrollmentLoaded(true);
+      }
+    };
+    void loadDeviceEnrollment();
     return () => { alive = false; };
   }, []);
 
@@ -173,7 +189,8 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!supabase) return;
+    // A previously enrolled device must not enter the teacher authentication flow.
+    if (!deviceEnrollmentLoaded || hasSavedChildToken || !supabase) return;
     let alive = true;
     supabase.auth.getSession().then(({ data, error }) => {
       if (alive && !error) {
@@ -192,7 +209,7 @@ export default function Home() {
       }
     });
     return () => { alive = false; data.subscription.unsubscribe(); };
-  }, [loadOverview]);
+  }, [loadOverview, deviceEnrollmentLoaded, hasSavedChildToken]);
 
   useEffect(() => {
     if (!userEmail || accessStatus !== "approved") return;
@@ -442,9 +459,9 @@ export default function Home() {
 
           <View style={s.hero}>
             <Text style={s.eyebrow}>ניהול חכם של מכשירים</Text>
-            <Text style={s.title}>{userEmail ? "לוח הבקרה של המורה" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "device" ? "כניסת מכשיר" : "כניסת מורה"}</Text>
+            <Text style={s.title}>{userEmail && !hasSavedChildToken ? "לוח הבקרה של המורה" : entryRole === "choose" ? "ברוכים הבאים" : entryRole === "device" ? "כניסת מכשיר" : "כניסת מורה"}</Text>
             <Text style={s.subtitle}>
-              {userEmail ? "הניהול נשמר בחשבון המורה ומסתנכרן אוטומטית." : entryRole === "choose" ? "המורה מתחבר פעם אחת. מכשירים מצטרפים באמצעות קוד צימוד." : entryRole === "device" ? "רישום מכשיר שאושר על ידי המורה." : "יוצרים חשבון מורה או מתחברים לחשבון קיים."}
+              {userEmail && !hasSavedChildToken ? "הניהול נשמר בחשבון המורה ומסתנכרן אוטומטית." : entryRole === "choose" ? "המורה מתחבר פעם אחת. מכשירים מצטרפים באמצעות קוד צימוד." : entryRole === "device" ? "רישום מכשיר שאושר על ידי המורה." : "יוצרים חשבון מורה או מתחברים לחשבון קיים."}
             </Text>
           </View>
 
@@ -455,7 +472,9 @@ export default function Home() {
             </Panel>
           ) : null}
 
-          {!userEmail && entryRole === "choose" ? (
+          {!deviceEnrollmentLoaded ? (
+            <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>בודקים אם המכשיר כבר רשום לכיתה...</Text></Panel>
+          ) : !userEmail && entryRole === "choose" ? (
             <Panel>
               <Text style={s.sectionTitle}>ברוכים הבאים ל‑Steve Control</Text>
               <Pressable style={s.roleCard} onPress={() => setEntryRole("teacher")}>
@@ -475,7 +494,7 @@ export default function Home() {
                 <Text style={s.roleArrow}>‹</Text>
               </Pressable>
             </Panel>
-          ) : !userEmail && entryRole === "device" ? (
+          ) : entryRole === "device" ? (
             <Panel>
               {hasSavedChildToken && childDevice ? (
                 <>
@@ -494,7 +513,7 @@ export default function Home() {
                   <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
                 </>
               )}
-              <Button title="חזרה לבחירת כניסה" onPress={() => setEntryRole("choose")} />
+              {!hasSavedChildToken ? <Button title="חזרה לבחירת כניסה" onPress={() => setEntryRole("choose")} /> : null}
             </Panel>
           ) : !userEmail ? (
             <Panel>
@@ -626,7 +645,7 @@ export default function Home() {
           )}
 
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
-          {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
+          {userEmail && !hasSavedChildToken ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
           {!userEmail && entryRole === "teacher" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
           <Text style={s.footer}>STEVE CONTROL · השליטה גלויה ומופעלת רק במכשירים שנרשמו ואושרו מראש.</Text>
         </ScrollView>
