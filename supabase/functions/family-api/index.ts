@@ -76,6 +76,7 @@ Deno.serve(async (req: Request) => {
     create_child: new Set(["action", "nickname"]),
     create_pairing_code: new Set(["action", "childId", "deviceLabel"]),
     send_notice: new Set(["action", "childId", "message", "deviceIds"]),
+    revoke_device: new Set(["action", "deviceId"]),
     overview: new Set(["action"]),
   };
   const action = typeof body.action === "string" ? body.action : "";
@@ -190,6 +191,53 @@ Deno.serve(async (req: Request) => {
       });
       if (auditError) throw auditError;
       return reply(201, { code, expiresAt, childId });
+    }
+
+    if (body.action === "revoke_device") {
+      const deviceId = cleanText(body.deviceId, 64);
+      if (!/^[0-9a-f-]{36}$/i.test(deviceId)) return reply(400, { error: "invalid_request" });
+
+      const { data: memberships, error: membershipError } = await admin
+        .from("family_members")
+        .select("id,family_id")
+        .eq("auth_user_id", user.id)
+        .eq("role", "teacher")
+        .eq("is_active", true);
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return reply(403, { error: "teacher_required" });
+
+      const { data: device, error: deviceError } = await admin
+        .from("devices")
+        .select("id,family_id,child_profile_id,status")
+        .eq("id", deviceId)
+        .in("family_id", memberships.map((member) => member.family_id))
+        .maybeSingle();
+      if (deviceError) throw deviceError;
+      if (!device) return reply(404, { error: "device_not_found" });
+      if (device.status === "revoked") return reply(200, { revoked: true, alreadyRevoked: true });
+      const teacher = memberships.find((member) => member.family_id === device.family_id);
+      if (!teacher) return reply(403, { error: "teacher_required" });
+
+      const { data: updated, error: updateError } = await admin
+        .from("devices")
+        .update({ status: "revoked", credential_hash: null })
+        .eq("id", deviceId)
+        .eq("family_id", device.family_id)
+        .eq("status", "active")
+        .select("id")
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updated) return reply(409, { error: "device_not_active" });
+
+      const { error: auditError } = await admin.from("audit_events").insert({
+        family_id: device.family_id,
+        actor_member_id: teacher.id,
+        subject_child_id: device.child_profile_id,
+        event_type: "device.revoked",
+        event_data: { deviceId },
+      });
+      if (auditError) throw auditError;
+      return reply(200, { revoked: true });
     }
 
     if (body.action === "send_notice") {
