@@ -1,4 +1,5 @@
 name: Android APK build
+# Explicitly triggered only after the code-validation workflow passes.
 
 on:
   workflow_dispatch:
