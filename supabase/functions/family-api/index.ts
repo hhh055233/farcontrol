@@ -261,6 +261,14 @@ Deno.serve(async (req: Request) => {
           .limit(25);
         if (activityError) throw activityError;
 
+        const { data: commands, error: commandsError } = await admin
+          .from("device_commands")
+          .select("id,device_id,command_type,status,created_at,delivered_at,acknowledged_at")
+          .eq("family_id", family.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (commandsError) throw commandsError;
+
         const childIds = (children ?? []).map((child) => child.id);
         let devices: unknown[] = [];
         if (childIds.length) {
@@ -276,6 +284,7 @@ Deno.serve(async (req: Request) => {
           ...family,
           currentTeacher: { id: membership.id, displayName: membership.display_name },
           activity: activity ?? [],
+          commands: commands ?? [],
           children: (children ?? []).map((child) => ({
             ...child,
             devices: devices.filter((device: any) => device.child_profile_id === child.id),
