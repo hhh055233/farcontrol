@@ -152,6 +152,69 @@ Deno.serve(async (req: Request) => {
       return reply(201, { code, expiresAt, childId });
     }
 
+    if (body.action === "send_notice") {
+      const childId = cleanText(body.childId, 64);
+      const message = cleanText(body.message, 200);
+      if (!/^[0-9a-f-]{36}$/i.test(childId) || !message) {
+        return reply(400, { error: "invalid_request" });
+      }
+
+      const { data: memberships, error: membershipError } = await admin
+        .from("family_members")
+        .select("id,family_id")
+        .eq("auth_user_id", user.id)
+        .eq("role", "parent")
+        .eq("is_active", true);
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return reply(403, { error: "teacher_required" });
+
+      const { data: child, error: childError } = await admin
+        .from("child_profiles")
+        .select("id,family_id")
+        .eq("id", childId)
+        .in("family_id", memberships.map((m) => m.family_id))
+        .maybeSingle();
+      if (childError) throw childError;
+      if (!child) return reply(404, { error: "device_group_not_found" });
+
+      const member = memberships.find((m) => m.family_id === child.family_id);
+      if (!member) return reply(403, { error: "teacher_required" });
+
+      const { data: devices, error: deviceError } = await admin
+        .from("devices")
+        .select("id")
+        .eq("child_profile_id", childId)
+        .eq("family_id", child.family_id)
+        .eq("status", "active")
+        .limit(50);
+      if (deviceError) throw deviceError;
+      if (!devices?.length) return reply(409, { error: "no_active_devices" });
+
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      const { error: commandError } = await admin.from("device_commands").insert(
+        devices.map((device) => ({
+          family_id: child.family_id,
+          device_id: device.id,
+          created_by_member_id: member.id,
+          command_type: "show_notice",
+          payload: { message },
+          expires_at: expiresAt,
+        })),
+      );
+      if (commandError) throw commandError;
+
+      const { error: auditError } = await admin.from("audit_events").insert({
+        family_id: child.family_id,
+        actor_member_id: member.id,
+        subject_child_id: childId,
+        event_type: "device.notice_queued",
+        event_data: { deviceCount: devices.length },
+      });
+      if (auditError) throw auditError;
+
+      return reply(201, { queued: devices.length, expiresAt });
+    }
+
     if (body.action === "overview") {
       const { data: memberships, error: memberError } = await admin
         .from("family_members")
