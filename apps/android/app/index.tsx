@@ -135,7 +135,7 @@ export default function Home() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setChildName("");
-      setMessage("קבוצה המכשיר נוצר. צימוד מכשיר יתווסף בשלב הבא.");
+      setMessage("פרופיל המכשיר נוצר. אפשר ליצור עבורו קוד צימוד.");
       await loadOverview();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "לא הצלחנו ליצור קבוצה.");
@@ -266,7 +266,7 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <Text style={s.sectionTitle}>חיבור מכשיר מכשיר</Text>
+                  <Text style={s.sectionTitle}>חיבור מכשיר</Text>
                   <Text style={s.body}>בקשו מהמורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
                   <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="0000000000" keyboardType="numeric" maxLength={10} />
                   <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
@@ -302,7 +302,7 @@ export default function Home() {
                 <Text style={s.small}>סביבת המורה פעילה · חשבון: {userEmail}</Text>
                 <View style={s.divider} />
                 <Text style={s.sectionTitle}>מכשירים וקבוצות</Text>
-                {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוצרו קבוצהי מכשירים וקבוצות.</Text> : family.children.map((child) => (
+                {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוספו מכשירים או קבוצות.</Text> : family.children.map((child) => (
                   <View key={child.id} style={s.childRow}>
                     <View style={s.childIcon}><Text style={{ color: C.mint, fontWeight: "900" }}>●</Text></View>
                     <View style={{ flex: 1 }}>
@@ -333,7 +333,7 @@ export default function Home() {
                 {family.activity?.length ? family.activity.map((event) => (
                   <View key={event.id} style={s.activityRow}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה כיתה" : event.event_type === "child.created" ? "נוצר קבוצה מכשיר" : event.event_type === "device.paired" ? "מכשיר מכשיר צורף לכיתה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
+                      <Text style={s.activityTitle}>{event.event_type === "family.created" ? "נוצרה כיתה" : event.event_type === "child.created" ? "נוצר פרופיל מכשיר" : event.event_type === "device.paired" ? "מכשיר צורף לכיתה" : event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</Text>
                       <Text style={s.small}>{new Date(event.created_at).toLocaleString("he-IL")}</Text>
                     </View>
                     <View style={s.activityDot} />
@@ -343,8 +343,8 @@ export default function Home() {
               </Panel>
               <Panel>
                 <Text style={s.sectionTitle}>השלבים הבאים</Text>
-                <Text style={s.body}>• הזמנת מורה נוסף בהרשאות שוות</Text>
-                <Text style={s.body}>• צימוד מאובטח של מכשיר המכשיר</Text>
+                <Text style={s.body}>• ניהול חשבון מורה יחיד ומאובטח</Text>
+                <Text style={s.body}>• צימוד מאובטח של מכשירים</Text>
                 <Text style={s.body}>• ניהול מספר מכשירים במקביל לאחר בדיקות הרשאות</Text>
               </Panel>
             </>
@@ -353,7 +353,7 @@ export default function Home() {
           {message ? <View style={s.message}><Text style={s.messageText}>{message}</Text></View> : null}
           {userEmail ? <Pressable style={s.signOut} onPress={signOut} disabled={busy}><Text style={s.signOutText}>התנתקות מהחשבון</Text></Pressable> : null}
           {!userEmail && entryRole === "teacher" ? <Pressable style={s.signOut} onPress={() => setEntryRole("choose")}><Text style={s.signOutText}>חזרה לבחירת כניסה</Text></Pressable> : null}
-          <Text style={s.footer}>STEVE CONTROL · הצגת מידע שקוף בלבד; הגבלות מכשיר יופעלו רק לאחר צימוד והרשאות מתאימות.</Text>
+          <Text style={s.footer}>STEVE CONTROL · השליטה גלויה ומופעלת רק במכשירים שנרשמו ואושרו מראש.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
