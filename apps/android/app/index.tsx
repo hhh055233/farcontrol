@@ -239,7 +239,7 @@ export default function Home() {
             <Panel>
               <Text style={s.sectionTitle}>ברוכים הבאים ל‑Steve Control</Text>
               <Pressable style={s.roleCard} onPress={() => setEntryRole("teacher")}>
-                <View style={s.roleIcon}><Text style={s.roleEmoji}>👨‍👩‍👧</Text></View>
+                <View style={s.roleIcon}><Text style={s.roleEmoji}>👩‍🏫</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.roleTitle}>כניסת מורה</Text>
                   <Text style={s.small}>ניהול כיתות, מכשירים והרשאות</Text>
@@ -247,7 +247,7 @@ export default function Home() {
                 <Text style={s.roleArrow}>‹</Text>
               </Pressable>
               <Pressable style={s.roleCard} onPress={() => setEntryRole("device")}>
-                <View style={s.roleIcon}><Text style={s.roleEmoji}>🧒</Text></View>
+                <View style={s.roleIcon}><Text style={s.roleEmoji}>📱</Text></View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.roleTitle}>כניסת מכשיר</Text>
                   <Text style={s.small}>רישום מכשיר לכיתה באמצעות קוד</Text>
@@ -260,7 +260,7 @@ export default function Home() {
               {hasSavedChildToken && childDevice ? (
                 <>
                   <Text style={s.sectionTitle}>המכשיר מחובר לכיתה</Text>
-                  <Text style={s.body}>היי {childDevice.childName}. המכשיר הזה צורף אל {childDevice.familyName} בהצלחה.</Text>
+                  <Text style={s.body}>המכשיר {childDevice.childName} צורף אל {childDevice.familyName} בהצלחה.</Text>
                   <View style={s.notice}><Text style={s.noticeText}>פרטי הצימוד נשמרים באחסון המאובטח של Android. המורה יכול לראות שהמכשיר צורף ביומן הפעילות.</Text></View>
                   <Text style={s.small}>מזהה מכשיר: {childDevice.deviceId.slice(0, 8)}…</Text>
                 </>
@@ -342,9 +342,9 @@ export default function Home() {
                 <Text style={s.small}>היומן מציג אירועים שהאפליקציה מתעדת, ולא תוכן פרטי מתוך אפליקציות אחרות.</Text>
               </Panel>
               <Panel>
-                <Text style={s.sectionTitle}>השלבים הבאים</Text>
-                <Text style={s.body}>• ניהול חשבון מורה יחיד ומאובטח</Text>
-                <Text style={s.body}>• צימוד מאובטח של מכשירים</Text>
+                <Text style={s.sectionTitle}>בהמשך נוסיף</Text>
+                <Text style={s.body}>• התחברות קבועה למורה ללא כניסה חוזרת</Text>
+                <Text style={s.body}>• צירוף מכשירים רבים לאותה סביבת מורה</Text>
                 <Text style={s.body}>• ניהול מספר מכשירים במקביל לאחר בדיקות הרשאות</Text>
               </Panel>
             </>
