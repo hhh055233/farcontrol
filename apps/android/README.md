@@ -1,34 +1,36 @@
-# Steve Family Android app
+# Steve Control — Android
 
-Android-first Expo / React Native application.
+Android app built with Expo and React Native for transparent, teacher-authorized school device management.
 
-## Local setup
+## Setup
 
 ```bash
-cd apps/android
 npm install
-cp .env.example .env
 npx expo start
 ```
 
-The app contains the public Supabase project URL and publishable key as safe client configuration defaults. You may override them with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Never put a Supabase `service_role` or secret key in the mobile app.
+The app reads the public Supabase URL and publishable key from `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. A publishable key is intended for client use; never place a Supabase secret or `service_role` key in the app.
 
 ## Implemented in this branch
 
-- Hebrew RTL-oriented Android parent sign-up and sign-in screens.
-- Supabase Auth with persistent local session storage via Expo SQLite.
-- Deployed Supabase Edge Function `family-api`, with JWT verification enabled.
-- Server actions: `create_family`, `create_child`, and `overview`.
-- Parent can create one family and child profiles; the app can load those records.
-- Server-side database RPCs create the family/member and child/member/audit records transactionally.
-- RLS and function privileges prevent direct client writes and direct pairing-code access.
+- Teacher sign-in and server-side teacher access approval.
+- Teacher classroom and device-group overview.
+- One-time device pairing codes and visible enrollment.
+- Device credentials stored with Android SecureStore.
+- Teacher can queue visible notices for paired devices.
+- Enrolled devices poll for commands and acknowledge them while the app is active.
+- The teacher interface supports selecting multiple active devices (up to 50).
 
-## Not yet implemented / not yet verified
+## Not implemented or not yet verified
 
-- Second-parent invitation and acceptance.
-- Child-device pairing, device credentials, heartbeat, and policy sync.
-- Actual Android device controls, usage reports, location sharing, or notifications.
-- Automated TypeScript check, APK build, installation, and real-device test. No APK has been built yet.
-- End-to-end test using a real, verified parent account.
+- Remote app launching, app blocking, screen viewing, and unrestricted device control.
+- Guaranteed background command delivery or push notifications.
+- Android Enterprise fully managed provisioning.
+- Real-device installation, enrollment, and end-to-end testing.
+- Production release signing and Play Store readiness.
 
-No device restrictions or hidden monitoring are active. Implement device capabilities only through documented Android APIs, visible permission flows, and transparent enrollment. Do not describe this as a completed parental-control app until each capability is implemented and tested.
+Device enrollment and management must remain visible and authorized on each device. The enrolled-device mode is an app-level navigation safeguard, not a way to prevent Android settings changes, app-data clearing, or uninstalling.
+
+## Test APK
+
+The GitHub Actions workflow `.github/workflows/android-apk.yml` builds a release-mode test APK from this branch when a commit message contains `[build-apk]`, or when manually dispatched. A successful workflow uploads an artifact named `steve-control-test-apk`. The artifact is temporary and is not a production Play Store release.
