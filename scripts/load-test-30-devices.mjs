@@ -102,6 +102,23 @@ function percentile(values, p) {
   return Number(sorted[Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1)].toFixed(1));
 }
 
+const overview = await post("family-api", teacherJwt, { action: "overview" });
+if (!overview.ok || !Array.isArray(overview.payload?.families)) {
+  fail(`Teacher overview failed (HTTP ${overview.status}).`);
+}
+const targetGroup = overview.payload.families
+  .flatMap((family) => Array.isArray(family.children) ? family.children : [])
+  .find((child) => child.id === childId);
+if (!targetGroup) fail("The staging teacher cannot see the target device group.");
+const activeIds = (targetGroup.devices ?? [])
+  .filter((device) => device.status === "active")
+  .map((device) => device.id)
+  .sort();
+const expectedIds = devices.map((device) => device.id).sort();
+if (activeIds.length !== TARGET || activeIds.some((id, index) => id !== expectedIds[index])) {
+  fail("Teacher overview does not show exactly the 30 expected active staging devices in this group.");
+}
+
 const timings = [];
 const failures = [];
 let totalQueued = 0;
