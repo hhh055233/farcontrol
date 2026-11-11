@@ -15,12 +15,12 @@ export default function Home() {
       <ScrollView contentContainerStyle={s.container}>
         <View style={s.top}>
           <View style={s.logo}><Text style={s.logoText}>S</Text></View>
-          <View style={{ flex: 1 }}><Text style={s.brand}>steve<Text style={{ color: C.blue }}>family</Text></Text><Text style={s.tag}>מרחב משפחתי בטוח</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.brand}>steve<Text style={{ color: C.blue }}>control</Text></Text><Text style={s.tag}>ניהול מכשירים חכם ושקוף</Text></View>
           <View style={s.status}><View style={s.dot} /><Text style={s.statusText}>Android</Text></View>
         </View>
 
         <View style={s.hero}>
-          <Text style={s.eyebrow}>ניהול משפחתי חכם ושקוף</Text>
+          <Text style={s.eyebrow}>ניהול מכשירים חכם ושקוף</Text>
           <Text style={s.title}>שלום, ברוכים הבאים</Text>
           <Text style={s.subtitle}>מקום אחד להורים ולילדים, עם כללים ברורים ושיתוף פעולה.</Text>
         </View>
@@ -59,7 +59,7 @@ export default function Home() {
         )}
 
         <View style={s.demo}><Text style={s.demoTitle}>אב־טיפוס בפיתוח</Text><Text style={s.demoText}>המסכים עובדים מקומית בלבד. חשבונות, קודי צירוף, סנכרון והגבלות מכשיר עדיין לא מחוברים לשרת.</Text></View>
-        <View style={s.footer}><Text style={s.footerText}>STEVE FAMILY · ANDROID FIRST</Text></View>
+        <View style={s.footer}><Text style={s.footerText}>STEVE CONTROL · ANDROID FIRST</Text></View>
       </ScrollView>
 
       {showInfo && (
