@@ -10,7 +10,7 @@ type Mode = "signup" | "signin";
 type EntryRole = "choose" | "teacher" | "device";
 type Family = {
   id: string; name: string; status: string;
-  children: Array<{ id: string; nickname: string; devices: Array<{ id: string; device_label: string; status: string; platform?: string; last_seen_at?: string | null }> }>;
+  activity?: Array<{ id: string; event_type: string; created_at: string; details: Record<string, unknown> }>;
   activity?: Array<{ id: number; event_type: string; created_at: string; details: Record<string, unknown> }>;
 };
 
@@ -99,7 +99,7 @@ export default function Home() {
   async function resendVerification() {
     if (!supabase) return;
     const cleanEmail = email.trim().toLowerCase();
-    if (!/^\\S+@\\S+\\.\\S+$/.test(cleanEmail)) return setMessage("הזינו קודם כתובת אימייל תקינה.");
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setMessage("הזינו קודם כתובת אימייל תקינה.");
     setBusy(true); setMessage("");
     const { error } = await supabase.auth.resend({ type: "signup", email: cleanEmail });
     setMessage(error ? "לא הצלחנו לשלוח אימות חוזר. נסו שוב מאוחר יותר." : "נשלח שוב אימייל אימות לכתובת שהזנתם.");
