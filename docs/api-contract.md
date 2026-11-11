@@ -1,78 +1,54 @@
-# Steve Control API contract (v1 draft)
+# Steve Control API contract
 
-This is a proposed contract for the first secure school-device vertical slice. It is a specification, not a claim that endpoints are deployed.
+The deployed backend is implemented as Supabase Edge Functions. This document describes the current supported contract; internal database names may retain legacy family/child labels while the product model is teacher/workspace/device.
 
-## Rules for every request
-- Teacher endpoints require a valid authenticated teacher session and ownership of the relevant workspace.
-- The server derives workspace_id and teacher_id from the authenticated session. A client cannot select another school's workspace by sending an ID.
-- Device endpoints require a separate, revocable device credential; never accept a teacher access token as a device credential.
-- Validate input on the server, use parameterized SQL, enforce request size limits and return generic authorization errors.
-- Write an audit event in the same database transaction as every enrollment, policy or device-security change.
-- Never return pairing-code hashes, device credential hashes, refresh tokens or internal database errors.
+## Authentication
+- Teacher operations require a valid Supabase Auth access token.
+- Teacher authorization is checked server-side against the teacher membership/allowlist; client-supplied role values are ignored.
+- Device operations use a separate random device credential. A teacher access token is not a device credential.
+- Service-role credentials remain in Supabase Edge Function secrets only.
 
-## Teacher workspace
+## Edge Function: `family-api`
+Authenticated teacher operations:
+- `overview`: load the teacher's workspace, device groups, devices, activity and command statuses.
+- `create_family`: create the teacher's workspace.
+- `create_child`: create a device group/class group.
+- `create_pairing_code`: generate a short-lived single-use invitation for a device group. The clear code is returned once; only its hash is stored.
+- `send_notice`: queue a visible notice for active devices in a group or selected device IDs.
 
-### POST /api/v1/workspaces
-Create the authenticated teacher's workspace. The caller becomes its sole administrator.
+Every request is checked against the authenticated teacher's workspace. Unknown fields/actions are rejected. Request bodies are size-limited and writes are audited.
 
-Request: { name: string }
-Response: { workspace: { id, name }, administrator: { id, role: 'teacher' } }
+## Edge Function: `teacher-access-api`
+Requires verified Google identity:
+- `submit_request`: submit a teacher access request.
+- `list_requests`: list teacher requests for an allowlisted administrator.
+- `review_request`: approve, reject or revoke a teacher request.
 
-### GET /api/v1/workspace/overview
-Return only the authenticated teacher's workspace, enrolled devices, pending invitations, policy versions and report freshness metadata.
+The server verifies the Supabase JWT and Google provider identity. The administrator allowlist is stored server-side.
 
-## Device enrollment
+## Edge Function: `redeem-pairing`
+Public device enrollment endpoint:
+- Accepts a one-time invitation code and device label.
+- Applies request-size checks and rate limiting.
+- Validates the code hash, expiry and unused state transactionally.
+- Issues a random device credential once and stores only its hash.
+- Returns the device ID and workspace/group identity only after successful redemption.
 
-### POST /api/v1/workspace/pairing-codes
-Create a short-lived, single-use device invitation. Only the workspace's teacher administrator may call this endpoint. Store only a keyed hash of the code and return the clear code once.
+The Android app must show the enrollment context and require explicit user confirmation before calling this endpoint.
 
-Request: { deviceLabel: string }
-Response: { pairingCode, expiresAt }
+## Edge Function: `device-command-api`
+Requires a valid device credential:
+- `poll`: claim at most one queued command for that device and update last-seen time.
+- `acknowledge`: mark a delivered command as acknowledged or failed.
 
-### POST /api/v1/device-enrollments/redeem
-Redeem a pairing code from the managed-device app only after showing the school/workspace name, teacher identity, requested permissions, data-sharing explanation and explicit confirmation.
+Only the device's own commands can be retrieved or acknowledged. The current command type is `show_notice`. Commands expire and are audited. No arbitrary shell, app launch, hidden collection or unrestricted remote-control command is supported.
 
-Request: { pairingCode, deviceLabel, appVersion }
-Response: { deviceId, deviceCredential, policyVersion }
+## Error handling
+The functions return bounded JSON errors and avoid exposing database internals or credentials. Clients should show a generic failure message, preserve user input where safe and retry only transient failures with backoff.
 
-The device credential is shown once and stored in secure device storage. The teacher can revoke it. Apply strict per-IP and per-code attempt limits.
-
-## Device sync
-
-### POST /api/v1/devices/{deviceId}/heartbeat
-Authenticate with the device credential. Update last_seen_at and app version. Heartbeats are rate-limited and batched.
-
-Request: { appVersion, appliedPolicyVersion, capabilities: string[] }
-Response: { serverTime, latestPolicyVersion, shouldFetchPolicy }
-
-### GET /api/v1/devices/{deviceId}/policy
-Return the latest policy only for the authenticated device. Include a monotonically increasing version and updatedAt.
-
-### POST /api/v1/devices/{deviceId}/reports
-Submit a bounded, validated batch of permitted device reports. Verify device ownership, timestamp range, payload size and duplicate event IDs. Collect only data explained and authorized during enrollment.
-
-## Teacher controls
-
-### PUT /api/v1/devices/{deviceId}/policy
-Validate a policy against the supported feature set for the enrolled Android app/API level. Increment policy version and create an audit event atomically.
-
-Request: { expectedVersion, policy }
-Response: { version, updatedAt, deliveryStatus: 'pending' | 'acknowledged' }
-
-### DELETE /api/v1/devices/{deviceId}/enrollment
-Revoke the device credential and stop future sync. Record the actor and reason in the audit log.
-
-### GET /api/v1/workspace/audit-events
-Return paginated, workspace-scoped events. Redact sensitive details and never expose credentials or pairing tokens.
-
-## Error model
-- 400: invalid request shape or unsupported policy value.
-- 401: missing or invalid authentication.
-- 403: authenticated user/device lacks permission.
-- 404: resource absent or not visible to this workspace.
-- 409: stale policy version, redeemed invitation or already-used pairing code.
-- 429: rate limit exceeded; include Retry-After.
-- 500: generic server error with a request ID; never expose SQL or secrets.
-
-## First implementation slice
-Implement teacher authentication, create workspace, generate/redeem device pairing codes, device heartbeat, workspace overview and device revocation. Keep feature enforcement out of scope until Android capability checks and device tests are complete.
+## Remaining implementation and verification
+- Confirm end-to-end teacher Google sign-in and access approval on the production domain.
+- Verify pairing and device credential storage on physical Android devices.
+- Verify notice delivery and acknowledgement with the app active and after reconnect.
+- Add background delivery only through supported Android mechanisms and test battery restrictions.
+- Do not claim full device management until each additional capability is implemented, authorized and tested.
