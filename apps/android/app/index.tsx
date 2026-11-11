@@ -516,7 +516,7 @@ export default function Home() {
                 <Text style={s.roleArrow}>‹</Text>
               </Pressable>
             </Panel>
-          ) : hasSavedChildToken && childDevice ? (
+          ) : entryRole === "device" ? (
             <Panel>
               {hasSavedChildToken && childDevice ? (
                 <>
