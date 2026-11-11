@@ -11,7 +11,10 @@
       "versionCode": 1,
       "permissions": []
     },
-    "plugins": ["expo-font"],
+    "plugins": [
+      "expo-font",
+      "expo-secure-store"
+    ],
     "experiments": {
       "typedRoutes": true
     }
