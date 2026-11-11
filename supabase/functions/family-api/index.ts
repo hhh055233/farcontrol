@@ -32,18 +32,41 @@ Deno.serve(async (req: Request) => {
   if (authError || !user) return reply(401, { error: "unauthorized" });
   if (!user.email_confirmed_at) return reply(403, { error: "email_not_verified" });
 
-  const contentLength = Number(req.headers.get("content-length") ?? "0");
-  if (contentLength > 8192) return reply(413, { error: "payload_too_large" });
+  // Enforce the request limit on actual bytes; Content-Length is optional
+  // and must not be trusted as the only size check.
+  let rawBody: string;
+  try {
+    rawBody = await req.text();
+  } catch {
+    return reply(400, { error: "invalid_request" });
+  }
+  if (new TextEncoder().encode(rawBody).byteLength > 8192) {
+    return reply(413, { error: "payload_too_large" });
+  }
 
   let body: Record<string, unknown>;
   try {
-    const parsed = await req.json();
+    const parsed: unknown = JSON.parse(rawBody);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return reply(400, { error: "invalid_request" });
     }
     body = parsed as Record<string, unknown>;
   } catch {
     return reply(400, { error: "invalid_json" });
+  }
+
+  const allowedFields: Record<string, Set<string>> = {
+    create_family: new Set(["action", "name", "displayName"]),
+    create_child: new Set(["action", "nickname"]),
+    create_pairing_code: new Set(["action", "childId", "deviceLabel"]),
+    send_notice: new Set(["action", "childId", "message", "deviceIds"]),
+    overview: new Set(["action"]),
+  };
+  const action = typeof body.action === "string" ? body.action : "";
+  const allowed = allowedFields[action];
+  if (!allowed) return reply(400, { error: "unknown_action" });
+  if (Object.keys(body).some((key) => !allowed.has(key))) {
+    return reply(400, { error: "unexpected_field" });
   }
 
   const cleanText = (value: unknown, max = 80) =>
