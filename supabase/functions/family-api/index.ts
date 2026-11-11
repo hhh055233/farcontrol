@@ -146,7 +146,7 @@ Deno.serve(async (req: Request) => {
         actor_member_id: parent.id,
         subject_child_id: childId,
         event_type: "device.pairing_code_created",
-        event_data: { deviceLabel, expiresAt },
+        details: { deviceLabel, expiresAt },
       });
       if (auditError) throw auditError;
       return reply(201, { code, expiresAt, childId });
@@ -179,7 +179,7 @@ Deno.serve(async (req: Request) => {
 
         const { data: activity, error: activityError } = await admin
           .from("audit_events")
-          .select("id,event_type,created_at,details:event_data")
+          .select("id,event_type,created_at,details")
           .eq("family_id", family.id)
           .order("created_at", { ascending: false })
           .limit(25);
@@ -190,7 +190,7 @@ Deno.serve(async (req: Request) => {
         if (childIds.length) {
           const { data, error } = await admin
             .from("devices")
-            .select("id,child_profile_id,device_label:device_name,platform,status,last_seen_at")
+            .select("id,child_profile_id,device_label,platform,status,last_seen_at")
             .in("child_profile_id", childIds);
           if (error) throw error;
           devices = data ?? [];
