@@ -72,8 +72,16 @@ export default function Home() {
     const { data, error } = await supabase.functions.invoke("family-api", {
       body: { action: "overview" },
     });
-    if (!error && data?.families) setFamilies(data.families as Family[]);
-    else if (error) setMessage("לא הצלחנו לטעון את נתוני הכיתה. נסו לרענן.");
+    if (!error && data?.families) {
+      const nextFamilies = data.families as Family[];
+      setFamilies(nextFamilies);
+      const activeIds = new Set(nextFamilies.flatMap((item) => item.children.flatMap((group) =>
+        group.devices.filter((device) => device.status === "active").map((device) => device.id)
+      )));
+      setSelectedDeviceIds((current) => current.filter((id) => activeIds.has(id)));
+    } else if (error) {
+      setMessage("לא הצלחנו לטעון את נתוני הכיתה. בדקו חיבור ואימות כתובת המייל, ונסו לרענן.");
+    }
     setLoadingOverview(false);
   }, []);
 
@@ -186,7 +194,10 @@ export default function Home() {
         body: { action: "create_child", nickname: childName.trim() },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        if (data.error === "teacher_family_required") throw new Error("נדרשת התחברות לחשבון מורה מאומת.");
+        throw new Error("לא הצלחנו ליצור את קבוצת המכשירים.");
+      }
       setChildName("");
       setMessage("הקבוצה נוצרה. אפשר ליצור עבורה קוד צימוד.");
       await loadOverview();
@@ -527,10 +538,10 @@ export default function Home() {
                 <Text style={s.small}>המסירה מתבצעת כשהאפליקציה פתוחה במכשיר. ברקע, קבלת הודעות עדיין אינה מובטחת.</Text>
               </Panel>
               <Panel>
-                <Text style={s.sectionTitle}>בהמשך נוסיף</Text>
-                <Text style={s.body}>• התחברות קבועה למורה ללא כניסה חוזרת</Text>
-                <Text style={s.body}>• צירוף מכשירים רבים לאותה סביבת מורה</Text>
-                <Text style={s.body}>• ניהול מספר מכשירים במקביל לאחר בדיקות הרשאות</Text>
+                <Text style={s.sectionTitle}>הרחבות לשלב הבא</Text>
+                <Text style={s.body}>• הודעות גם כשהאפליקציה סגורה — דורש הגדרת התראות Push.</Text>
+                <Text style={s.body}>• פעולות ניהול נוספות רק בהתאם להרשאות Android ולאישור גלוי במכשיר.</Text>
+                <Text style={s.body}>• תמיכה במחשבים תתווסף בשלב נפרד.</Text>
               </Panel>
             </>
           )}
