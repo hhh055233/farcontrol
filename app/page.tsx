@@ -40,7 +40,7 @@ export default function Home() {
   return (
     <main className="shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">S</div><div><strong>steve<span>family</span></strong><small>מרחב משפחתי בטוח</small></div></div>
+        <div className="brand"><div className="brand-mark">S</div><div><strong>steve<span>control</span></strong><small>ניהול מכשירים חכם ושקוף</small></div></div>
         <div className="workspace"><span className="workspace-dot" /> משפחת ישראלי <span className="chevron">⌄</span></div>
         <div className="nav-label">תפריט ראשי</div>
         <nav>
@@ -78,11 +78,11 @@ export default function Home() {
           <section className="panel" id="parents" style={{ marginTop: 20 }}><div className="section-heading compact"><div><h2>הורים והרשאות</h2><p>לשני ההורים אותן הרשאות ניהול</p></div><span className="secure-pill">2 מנהלים</span></div><div className="device-grid"><article className="device-card"><div className="device-head"><div className="top-avatar">א</div><div className="device-title"><strong>הורה א׳</strong><small>מנהל משפחה · הרשאות מלאות</small></div><span className="connected">פעיל</span></div></article><article className="device-card"><div className="device-head"><div className="top-avatar">ב</div><div className="device-title"><strong>הורה ב׳</strong><small>מנהל משפחה · הרשאות מלאות</small></div><span className="connected">פעיל</span></div></article></div><div className="schedule-foot">באבטיפוס שני החשבונות מוצגים כשווים. הזמנות והתחברות אמיתיות יתווספו לאחר חיבור מערכת משתמשים.</div></section>
 
           <section className="security-banner" id="security"><div className="security-symbol">⬡</div><div><strong>פרטיות ובטיחות לפני הכול</strong><p>אין מעקב נסתר. צירוף מכשיר ושיתוף מידע ידרשו אישור והרשאות ברורות.</p></div><a href="#security">עקרונות האבטחה ←</a></section>
-          <footer>Steve Family <span>·</span> אבטיפוס למשפחה אחת · נתוני המחשה בלבד · ללא שליטה אמיתית במכשירים</footer>
+          <footer>Steve Control <span>·</span> אבטיפוס למשפחה אחת · נתוני המחשה בלבד · ללא שליטה אמיתית במכשירים</footer>
         </div>
       </section>
 
-      {showPair && <div className="modal-backdrop" onClick={() => setShowPair(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowPair(false)}>×</button><div className="modal-mark">＋</div><h2>צירוף מכשיר למשפחה</h2><p>בגרסה המלאה, מתקינים את אפליקציית הילד, מציגים את ההרשאות ומאשרים את החיבור מהמכשיר עצמו.</p>{pairCode ? <div className="pair-code"><small>קוד הדגמה בלבד — לא מחבר מכשיר</small><strong>{pairCode}</strong></div> : <div className="pair-steps"><div><b>1</b><span>התקנת אפליקציית Steve Family</span></div><div><b>2</b><span>אישור גלוי במכשיר הילד</span></div><div><b>3</b><span>בחירת הרשאות ושיתוף מידע</span></div></div>}<button className="primary-btn modal-action" onClick={createDemoCode}>{pairCode ? "יצירת קוד הדגמה חדש" : "הצגת קוד הדגמה"}</button><small className="modal-disclaimer">זהו קוד המחשה מקומי בלבד. צימוד מאובטח עדיין לא מחובר לשרת.</small></div></div>}
+      {showPair && <div className="modal-backdrop" onClick={() => setShowPair(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowPair(false)}>×</button><div className="modal-mark">＋</div><h2>צירוף מכשיר למשפחה</h2><p>בגרסה המלאה, מתקינים את אפליקציית הילד, מציגים את ההרשאות ומאשרים את החיבור מהמכשיר עצמו.</p>{pairCode ? <div className="pair-code"><small>קוד הדגמה בלבד — לא מחבר מכשיר</small><strong>{pairCode}</strong></div> : <div className="pair-steps"><div><b>1</b><span>התקנת אפליקציית Steve Control</span></div><div><b>2</b><span>אישור גלוי במכשיר הילד</span></div><div><b>3</b><span>בחירת הרשאות ושיתוף מידע</span></div></div>}<button className="primary-btn modal-action" onClick={createDemoCode}>{pairCode ? "יצירת קוד הדגמה חדש" : "הצגת קוד הדגמה"}</button><small className="modal-disclaimer">זהו קוד המחשה מקומי בלבד. צימוד מאובטח עדיין לא מחובר לשרת.</small></div></div>}
       {toast && <div className="toast">{toast}</div>}
     </main>
   );
