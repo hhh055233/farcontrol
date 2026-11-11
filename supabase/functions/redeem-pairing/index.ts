@@ -25,42 +25,48 @@ function randomHex(byteLength: number) {
   return toHex(bytes);
 }
 
-function randomTenDigitCode() {
-  const range = 1n << 64n;
-  const ceiling = range - (range % 10_000_000_000n);
-  while (true) {
-    const bytes = new Uint8Array(8);
-    crypto.getRandomValues(bytes);
-    let value = 0n;
-    for (const byte of bytes) value = (value << 8n) | BigInt(byte);
-    if (value < ceiling) return String(value % 10_000_000_000n).padStart(10, "0");
-  }
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return reply(405, { error: "method_not_allowed" });
 
-  const contentLength = Number(req.headers.get("content-length") ?? "0");
-  if (contentLength > 2048) return reply(413, { error: "payload_too_large" });
+  // Enforce the limit on the actual body, not only the optional Content-Length header.
+  let rawBody: string;
+  try {
+    rawBody = await req.text();
+  } catch {
+    return reply(400, { error: "invalid_request" });
+  }
+  if (new TextEncoder().encode(rawBody).byteLength > 2048) {
+    return reply(413, { error: "payload_too_large" });
+  }
 
   let body: Record<string, unknown>;
   try {
-    const parsed = await req.json();
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return reply(400, { error: "invalid_request" });
+    const parsed: unknown = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return reply(400, { error: "invalid_request" });
+    }
     body = parsed as Record<string, unknown>;
   } catch {
     return reply(400, { error: "invalid_json" });
   }
 
+  if (Object.keys(body).some((key) => key !== "code" && key !== "deviceLabel")) {
+    return reply(400, { error: "unexpected_field" });
+  }
+
   const code = typeof body.code === "string" ? body.code.replace(/\s/g, "") : "";
-  const deviceLabel = typeof body.deviceLabel === "string" ? body.deviceLabel.trim().slice(0, 80) : "מכשיר Android";
+  const rawLabel = body.deviceLabel === undefined ? "מכשיר Android" : body.deviceLabel;
+  if (typeof rawLabel !== "string" || rawLabel.trim().length < 1 || rawLabel.trim().length > 80) {
+    return reply(400, { error: "invalid_device_label" });
+  }
+  const deviceLabel = rawLabel.trim();
   if (!/^\d{10}$/.test(code)) return reply(400, { error: "invalid_code_format" });
 
-  // Supabase's edge gateway supplies the client address. Do not trust a caller-provided custom IP field.
+  // Use only platform-provided address headers; caller-supplied JSON IP values are ignored.
   const forwarded = req.headers.get("x-forwarded-for");
   const clientIp = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? forwarded?.split(",").at(-1)?.trim();
-  if (!clientIp) return reply(503, { error: "rate_limit_unavailable" });
+  if (!clientIp || clientIp.length > 128) return reply(503, { error: "rate_limit_unavailable" });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -79,7 +85,7 @@ Deno.serve(async (req: Request) => {
       p_code_hash: codeHash,
       p_ip_hash: ipHash,
       p_credential_hash: credentialHash,
-      p_device_label: deviceLabel || "מכשיר Android",
+      p_device_label: deviceLabel,
     });
     if (error) throw error;
 
