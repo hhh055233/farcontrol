@@ -1,6 +1,6 @@
 {
-  "name": "steve-family",
-  "version": "0.1.0",
+  "name": "steve-control",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
     "next": "^15.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

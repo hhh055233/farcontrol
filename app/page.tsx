@@ -1,89 +1,220 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { createClient, type Session } from "@supabase/supabase-js";
 
-type Device = { id: number; name: string; type: string; status: string; lastSeen: string; usage: string; color: string };
+type Device = {
+  id: string;
+  device_label: string;
+  platform: string;
+  status: string;
+  last_seen_at: string | null;
+};
+type Group = { id: string; nickname: string; devices: Device[] };
+type Classroom = {
+  id: string;
+  name: string;
+  status: string;
+  currentTeacher?: { displayName: string };
+  children: Group[];
+};
+type Pairing = { code: string; expiresAt: string };
 
-const initialDevices: Device[] = [
-  { id: 1, name: "המכשיר של נועם", type: "Android", status: "מחובר", lastSeen: "פעיל עכשיו", usage: "2ש׳ 14ד׳", color: "blue" },
-];
-
-const initialActivities = [
-  { icon: "⏱", title: "זמן מסך עודכן", detail: "המסגרת היומית נבדקה · היום, 09:42", tone: "blue" },
-  { icon: "✓", title: "מכשיר צורף למשפחה", detail: "המכשיר של נועם · אתמול", tone: "green" },
-  { icon: "◷", title: "לוח שעת שינה הופעל", detail: "כל יום · 21:00", tone: "violet" },
-];
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const supabase = supabaseUrl && supabaseKey
+  ? createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    })
+  : null;
 
 export default function Home() {
-  const [devices, setDevices] = useState(initialDevices);
-  const [bedtime, setBedtime] = useState(true);
-  const [school, setSchool] = useState(false);
-  const [showPair, setShowPair] = useState(false);
-  const [pairCode, setPairCode] = useState("");
-  const [toast, setToast] = useState("");
-  const [requestStatus, setRequestStatus] = useState<"pending" | "approved" | "denied">("pending");
+  const [session, setSession] = useState<Session | null>(null);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [noticeDrafts, setNoticeDrafts] = useState<Record<string, string>>({});
+  const [pairings, setPairings] = useState<Record<string, Pairing>>({});
+  const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  function notify(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(""), 2400);
+  const callApi = useCallback(async (body: Record<string, unknown>) => {
+    if (!supabase) throw new Error("החיבור לשרת עדיין לא הוגדר.");
+    const { data, error: invokeError } = await supabase.functions.invoke("family-api", { body });
+    if (invokeError) throw new Error("לא הצלחנו להשלים את הבקשה. בדקו את החיבור ונסו שוב.");
+    if (data?.error) {
+      const messages: Record<string, string> = {
+        teacher_family_required: "לחשבון הזה אין הרשאת מורה פעילה.",
+        teacher_required: "רק מורה מורשה יכול לבצע את הפעולה.",
+        no_active_devices: "עדיין לא צורפו מכשירים פעילים לקבוצה.",
+        active_pairing_code_exists: "כבר קיים קוד צימוד פעיל לקבוצה.",
+      };
+      throw new Error(messages[data.error] ?? "השרת דחה את הבקשה.");
+    }
+    return data;
+  }, []);
+
+  const loadOverview = useCallback(async () => {
+    if (!supabase) return;
+    setLoading(true);
+    setError("");
+    try {
+      const data = await callApi({ action: "overview" });
+      setClassrooms(Array.isArray(data?.families) ? data.families : []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "טעינת הנתונים נכשלה.");
+    } finally {
+      setLoading(false);
+    }
+  }, [callApi]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (active) setSession(data.session);
+    });
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) setSession(nextSession);
+    });
+    return () => {
+      active = false;
+      auth.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (session) void loadOverview();
+    else setClassrooms([]);
+  }, [session, loadOverview]);
+
+  const deviceCount = useMemo(
+    () => classrooms.reduce((sum, room) => sum + room.children.reduce((n, group) => n + group.devices.length, 0), 0),
+    [classrooms],
+  );
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supabase) return setError("החיבור לשרת עדיין לא הוגדר.");
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (authError || !data.session) throw new Error("פרטי ההתחברות לא אומתו. בדקו אימייל וסיסמה.");
+      setSession(data.session);
+      setPassword("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ההתחברות נכשלה.");
+    } finally {
+      setBusy(false);
+    }
   }
 
-  function createDemoCode() {
-    setPairCode(String(Math.floor(100000 + Math.random() * 900000)));
+  async function createGroup() {
+    const name = window.prompt("שם הקבוצה או הכיתה:");
+    if (!name?.trim()) return;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await callApi({ action: "create_child", nickname: name.trim() });
+      setMessage("הקבוצה נוצרה.");
+      await loadOverview();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "יצירת הקבוצה נכשלה.");
+    } finally { setBusy(false); }
   }
 
-  function toggleDevice(id: number) {
-    setDevices(current => current.map(d => d.id === id ? { ...d, status: d.status === "מחובר" ? "מושהה" : "מחובר" } : d));
-    notify("הסטטוס השתנה בתצוגת ההדגמה בלבד");
+  async function createPairing(groupId: string) {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const data = await callApi({ action: "create_pairing_code", childId: groupId, deviceLabel: "טאבלט בית ספר" });
+      setPairings(current => ({ ...current, [groupId]: { code: data.code, expiresAt: data.expiresAt } }));
+      setMessage("נוצר קוד צימוד חד-פעמי. הוא תקף לעשר דקות.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "יצירת קוד הצימוד נכשלה.");
+    } finally { setBusy(false); }
+  }
+
+  async function sendNotice(groupId: string) {
+    const text = (noticeDrafts[groupId] ?? "").trim();
+    if (!text) return setError("כתבו הודעה קצרה לפני השליחה.");
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const data = await callApi({ action: "send_notice", childId: groupId, message: text });
+      setNoticeDrafts(current => ({ ...current, [groupId]: "" }));
+      setMessage(`ההודעה נכנסה לתור עבור ${data.queued} מכשירים. היא תוצג כשהאפליקציה במכשיר פעילה ומקבלת פקודות.`);
+      await loadOverview();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "שליחת ההודעה נכשלה.");
+    } finally { setBusy(false); }
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setSession(null); setClassrooms([]); setPairings({}); setMessage("התנתקתם בהצלחה.");
   }
 
   return (
-    <main className="shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-mark">S</div><div><strong>steve<span>family</span></strong><small>מרחב משפחתי בטוח</small></div></div>
-        <div className="workspace"><span className="workspace-dot" /> משפחת ישראלי <span className="chevron">⌄</span></div>
-        <div className="nav-label">תפריט ראשי</div>
-        <nav>
-          <a className="nav-item active" href="#overview"><span>▦</span> סקירה כללית</a>
-          <a className="nav-item" href="#devices"><span>▣</span> המכשיר של נועם <b>1</b></a>
-          <a className="nav-item" href="#schedules"><span>◷</span> לוחות זמנים</a>
-          <a className="nav-item" href="#requests"><span>✓</span> בקשות ואישורים <b>1</b></a>
-          <a className="nav-item" href="#parents"><span>♧</span> הורים והרשאות</a>
-        </nav>
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon">✦</div><strong>פרטיות לפני הכול</strong><p>כל הצטרפות ושיתוף מידע דורשים אישור גלוי.</p><a href="#security">עקרונות האבטחה ←</a></div><div className="profile"><div className="avatar">ה</div><div><strong>הורי המשפחה</strong><small>2 מנהלים שווים</small></div><span className="dots">•••</span></div></div>
-      </aside>
+    <main className="page-shell">
+      <header className="topbar">
+        <div className="brand"><span className="brand-mark">S</span><div><strong>Steve Control</strong><small>ניהול מכשירי בית הספר</small></div></div>
+        {session && <div className="account"><span>{session.user.email}</span><button className="button button-quiet" onClick={signOut}>התנתקות</button></div>}
+      </header>
 
-      <section className="content" id="overview">
-        <header className="topbar"><div className="crumb">משפחת ישראלי <span>/</span> <b>סקירה כללית</b></div><div className="top-actions"><span className="secure-pill"><i /> סביבת הדגמה</span><button className="icon-btn" aria-label="התראות">♧<em /></button><div className="top-avatar">ה</div></div></header>
-        <div className="page-wrap">
-          <section className="welcome-row"><div><div className="eyebrow">מרחב משפחתי · ילד אחד · שני הורים</div><h1>שלום למשפחת ישראלי.</h1><p className="subhead">כל המידע המשפחתי במקום אחד, עם הרשאות שוות לשני ההורים ושקיפות מול הילד.</p></div><button className="primary-btn" onClick={() => { setShowPair(true); setPairCode(""); }}>＋ צירוף מכשיר</button></section>
-
-          <section className="stats-grid">
-            <article className="stat-card"><div className="stat-top"><span>ילדים במרחב</span><span className="stat-icon blue-bg">♙</span></div><div className="stat-number">01 <small>ילד</small></div><div className="stat-foot">נועם · פרופיל משפחתי אחד</div></article>
-            <article className="stat-card"><div className="stat-top"><span>זמן מסך היום</span><span className="stat-icon purple-bg">◷</span></div><div className="stat-number">2:14 <small>שעות</small></div><div className="stat-foot">נתון המחשה בלבד</div></article>
-            <article className="stat-card"><div className="stat-top"><span>הורים מנהלים</span><span className="stat-icon mint-bg">♧</span></div><div className="stat-number">02 <small>שווים</small></div><div className="stat-foot">אותן הרשאות ניהול</div></article>
-            <article className="stat-card"><div className="stat-top"><span>כללים לדוגמה</span><span className="stat-icon gold-bg">◇</span></div><div className="stat-number">02 <small>פעילים</small></div><div className="stat-foot">המתגים משנים תצוגה בלבד</div></article>
+      {!supabase ? (
+        <section className="auth-card"><h1>הגדרת השרת נדרשת</h1><p>חסרים משתני החיבור הציבוריים של Supabase בשרת Render. לא הוצגו נתוני הדגמה.</p></section>
+      ) : !session ? (
+        <section className="auth-card">
+          <div className="eyebrow">כניסה מאובטחת למורה</div>
+          <h1>שלום, ברוכים הבאים לסטיב קונטרול</h1>
+          <p>התחברו עם חשבון מורה קיים. אין כאן הרשמה פתוחה או יצירת חשבון מנהל אוטומטית.</p>
+          <form onSubmit={signIn} className="login-form">
+            <label>כתובת אימייל<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
+            <label>סיסמה<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
+            <button className="button button-primary" disabled={busy}>{busy ? "מתחברים…" : "כניסה לחשבון המורה"}</button>
+          </form>
+          <p className="fine-print">יצירת חשבון ואישור הרשאת מורה יתבצעו בתהליך ההרשמה המאושר של בית הספר.</p>
+        </section>
+      ) : (
+        <div className="dashboard">
+          <section className="welcome">
+            <div><div className="eyebrow">מרחב המורה</div><h1>לוח הבקרה של המורה</h1><p>ניהול קבוצות ומכשירים שאושרו ושויכו לחשבון המורה.</p></div>
+            <button className="button button-secondary" onClick={() => void loadOverview()} disabled={loading}>{loading ? "מרעננים…" : "רענון נתונים"}</button>
           </section>
 
-          <section className="section-block" id="devices"><div className="section-heading"><div><h2>המכשיר של נועם</h2><p>מכשיר Android המשויך לפרופיל הילד</p></div><button className="text-btn" onClick={() => setShowPair(true)}>פרטי צירוף ←</button></div>
-            <div className="device-grid"><article className="device-card"><div className="device-head"><div className="device-icon blue">◈</div><div className="device-title"><strong>Samsung Android</strong><small>נועם · נראה פעיל בהדגמה</small></div><button className="more-btn" aria-label="אפשרויות">•••</button></div><div className="device-data"><div><small>זמן מסך היום</small><strong>2ש׳ 14ד׳</strong></div><div><small>סטטוס תצוגה</small><strong className={devices[0].status === "מחובר" ? "connected" : "paused"}><i />{devices[0].status}</strong></div></div><div className="device-actions"><button className="outline-btn" onClick={() => toggleDevice(1)}>{devices[0].status === "מחובר" ? "השהיית תצוגה" : "סימון כמחובר"}</button><span className="device-note">לא משנה את המכשיר בפועל</span></div></article></div>
+          <section className="stats">
+            <article><span>כיתות / מרחבים</span><strong>{classrooms.length}</strong></article>
+            <article><span>קבוצות תלמידים</span><strong>{classrooms.reduce((n, room) => n + room.children.length, 0)}</strong></article>
+            <article><span>מכשירים משויכים</span><strong>{deviceCount}</strong></article>
           </section>
 
-          <section className="lower-grid">
-            <div className="panel" id="schedules"><div className="section-heading compact"><div><h2>לוחות זמנים</h2><p>כללים משפחתיים לדוגמה</p></div><button className="plus-btn" onClick={() => notify("יצירת לוח זמנים תתווסף בגרסה הבאה")} aria-label="הוסף לוח זמנים">＋</button></div><div className="schedule-row"><div className="schedule-symbol bedtime">☾</div><div className="schedule-info"><strong>שעת שינה</strong><small>כל יום · 21:00–07:00</small></div><button className={`switch ${bedtime ? "on" : ""}`} onClick={() => { setBedtime(!bedtime); notify("המתג עודכן בהדגמה בלבד"); }} aria-label="הפעלת שעת שינה"><i /></button></div><div className="schedule-row"><div className="schedule-symbol school">▤</div><div className="schedule-info"><strong>שעות לימודים</strong><small>א׳–ה׳ · 08:00–13:30</small></div><button className={`switch ${school ? "on" : ""}`} onClick={() => { setSchool(!school); notify("המתג עודכן בהדגמה בלבד"); }} aria-label="הפעלת שעות לימודים"><i /></button></div><div className="schedule-foot">המתגים משנים את התצוגה בלבד. עדיין אין אכיפה במכשיר.</div></div>
+          {classrooms.length === 0 && !loading ? (
+            <section className="empty"><h2>לא נמצאה הרשאת מורה פעילה</h2><p>החשבון מחובר, אך עדיין אין לו מרחב מורה מאושר. אין אפשרות לשלוט במכשירים מחשבון ללא הרשאה.</p></section>
+          ) : classrooms.map(room => (
+            <section className="classroom" key={room.id}>
+              <div className="classroom-head"><div><span className="eyebrow">מרחב בית ספרי</span><h2>{room.name}</h2><small>מורה אחראי: {room.currentTeacher?.displayName ?? session.user.email}</small></div><button className="button button-secondary" disabled={busy} onClick={() => void createGroup()}>＋ הוספת קבוצה</button></div>
+              {room.children.length === 0 ? <p className="empty-inline">עדיין לא נוצרו קבוצות במרחב הזה.</p> : room.children.map(group => (
+                <article className="group-card" key={group.id}>
+                  <div className="group-head"><div><h3>{group.nickname}</h3><span>{group.devices.length} מכשירים משויכים</span></div><button className="button button-primary" disabled={busy} onClick={() => void createPairing(group.id)}>יצירת קוד צימוד</button></div>
+                  {pairings[group.id] && <div className="pairing"><div><small>קוד חד-פעמי · בתוקף עד {new Date(pairings[group.id].expiresAt).toLocaleTimeString("he-IL")}</small><strong>{pairings[group.id].code}</strong></div><button className="button button-quiet" onClick={() => void navigator.clipboard?.writeText(pairings[group.id].code)}>העתקה</button></div>}
+                  <div className="devices">
+                    {group.devices.length === 0 ? <p className="empty-inline">אין עדיין מכשירים משויכים. צרו קוד והזינו אותו באפליקציית Steve Control שעל הטאבלט.</p> : group.devices.map(device => (
+                      <div className="device" key={device.id}><span className={`status-dot ${device.status === "active" ? "status-active" : ""}`} /><div><strong>{device.device_label || "טאבלט"}</strong><small>{device.status === "active" ? "רשום ומורשה" : "לא פעיל"} · {device.last_seen_at ? `נראה לאחרונה ${new Date(device.last_seen_at).toLocaleString("he-IL")}` : "טרם נרשם חיבור"}</small></div></div>
+                    ))}
+                  </div>
+                  <div className="notice-form"><label>הודעה שתוצג בטאבלטים בקבוצה<textarea maxLength={200} value={noticeDrafts[group.id] ?? ""} onChange={e => setNoticeDrafts(current => ({ ...current, [group.id]: e.target.value }))} placeholder="לדוגמה: פתחו את סביבת הלמידה לשיעור" /></label><button className="button button-secondary" disabled={busy || !group.devices.some(d => d.status === "active")} onClick={() => void sendNotice(group.id)}>שליחת הודעה לכל המכשירים הפעילים</button></div>
+                </article>
+              ))}
+            </section>
+          ))}
 
-            <div className="panel" id="requests"><div className="section-heading compact"><div><h2>בקשה מנועם</h2><p>תהליך אישור לדוגמה</p></div><span className="secure-pill">בקשת הדגמה</span></div><div className="activity-row"><div className="activity-icon blue">＋</div><div><strong>בקשת זמן נוסף</strong><small>נועם מבקש 30 דקות נוספות להיום</small></div></div>{requestStatus === "pending" ? <div style={{ display: "flex", gap: 8, marginTop: 18 }}><button className="primary-btn" style={{ flex: 1 }} onClick={() => { setRequestStatus("approved"); notify("הבקשה אושרה בתצוגת ההדגמה"); }}>אישור</button><button className="outline-btn" style={{ flex: 1 }} onClick={() => { setRequestStatus("denied"); notify("הבקשה נדחתה בתצוגת ההדגמה"); }}>דחייה</button></div> : <div className="schedule-foot" style={{ marginTop: 16 }}>סטטוס הבקשה: {requestStatus === "approved" ? "אושרה" : "נדחתה"} · ניתן לרענן כדי לאפס את ההדגמה</div>}</div>
-          </section>
-
-          <section className="panel" id="parents" style={{ marginTop: 20 }}><div className="section-heading compact"><div><h2>הורים והרשאות</h2><p>לשני ההורים אותן הרשאות ניהול</p></div><span className="secure-pill">2 מנהלים</span></div><div className="device-grid"><article className="device-card"><div className="device-head"><div className="top-avatar">א</div><div className="device-title"><strong>הורה א׳</strong><small>מנהל משפחה · הרשאות מלאות</small></div><span className="connected">פעיל</span></div></article><article className="device-card"><div className="device-head"><div className="top-avatar">ב</div><div className="device-title"><strong>הורה ב׳</strong><small>מנהל משפחה · הרשאות מלאות</small></div><span className="connected">פעיל</span></div></article></div><div className="schedule-foot">באבטיפוס שני החשבונות מוצגים כשווים. הזמנות והתחברות אמיתיות יתווספו לאחר חיבור מערכת משתמשים.</div></section>
-
-          <section className="security-banner" id="security"><div className="security-symbol">⬡</div><div><strong>פרטיות ובטיחות לפני הכול</strong><p>אין מעקב נסתר. צירוף מכשיר ושיתוף מידע ידרשו אישור והרשאות ברורות.</p></div><a href="#security">עקרונות האבטחה ←</a></section>
-          <footer>Steve Family <span>·</span> אבטיפוס למשפחה אחת · נתוני המחשה בלבד · ללא שליטה אמיתית במכשירים</footer>
+          <section className="limits"><strong>מה זמין כרגע</strong><p>צימוד מאושר, הצגת סטטוס אחרון ושליחת הודעות גלויות. קבלת פקודות תלויה בכך שאפליקציית המכשיר פועלת. צפייה במסך, נעילת מכשיר, הפעלת אפליקציות וניהול Android Enterprise עדיין אינם זמינים בממשק הזה.</p></section>
         </div>
-      </section>
+      )}
 
-      {showPair && <div className="modal-backdrop" onClick={() => setShowPair(false)}><div className="modal" onClick={e => e.stopPropagation()}><button className="modal-close" onClick={() => setShowPair(false)}>×</button><div className="modal-mark">＋</div><h2>צירוף מכשיר למשפחה</h2><p>בגרסה המלאה, מתקינים את אפליקציית הילד, מציגים את ההרשאות ומאשרים את החיבור מהמכשיר עצמו.</p>{pairCode ? <div className="pair-code"><small>קוד הדגמה בלבד — לא מחבר מכשיר</small><strong>{pairCode}</strong></div> : <div className="pair-steps"><div><b>1</b><span>התקנת אפליקציית Steve Family</span></div><div><b>2</b><span>אישור גלוי במכשיר הילד</span></div><div><b>3</b><span>בחירת הרשאות ושיתוף מידע</span></div></div>}<button className="primary-btn modal-action" onClick={createDemoCode}>{pairCode ? "יצירת קוד הדגמה חדש" : "הצגת קוד הדגמה"}</button><small className="modal-disclaimer">זהו קוד המחשה מקומי בלבד. צימוד מאובטח עדיין לא מחובר לשרת.</small></div></div>}
-      {toast && <div className="toast">{toast}</div>}
+      {(message || error) && <div className={`toast ${error ? "toast-error" : ""}`} role="status">{error || message}<button onClick={() => { setError(""); setMessage(""); }}>×</button></div>}
+      <footer className="footer">Steve Control · ניהול שקוף ומאושר של מכשירי בית הספר</footer>
     </main>
   );
 }
