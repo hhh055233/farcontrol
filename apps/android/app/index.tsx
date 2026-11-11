@@ -29,6 +29,15 @@ type Family = {
     created_at: string;
     details: Record<string, unknown>;
   }>;
+  commands?: Array<{
+    id: string;
+    device_id: string;
+    command_type: string;
+    status: string;
+    created_at: string;
+    delivered_at?: string | null;
+    acknowledged_at?: string | null;
+  }>;
 };
 
 const C = {
@@ -118,9 +127,15 @@ export default function Home() {
     const cleanEmail = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setMessage("הזינו קודם כתובת אימייל תקינה.");
     setBusy(true); setMessage("");
-    const { error } = await supabase.auth.resend({ type: "signup", email: cleanEmail });
-    setMessage(error ? "לא הצלחנו לשלוח אימות חוזר. נסו שוב מאוחר יותר." : "נשלח שוב אימייל אימות לכתובת שהזנתם.");
-    setBusy(false);
+    try {
+      const { error } = await supabase.auth.resend({ type: "signup", email: cleanEmail });
+      if (error) throw error;
+      setMessage("נשלח שוב אימייל אימות לכתובת שהזנתם.");
+    } catch {
+      setMessage("לא הצלחנו לשלוח אימות חוזר. נסו שוב מאוחר יותר.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submitAuth() {
@@ -494,6 +509,24 @@ export default function Home() {
                 <Text style={s.small}>היומן מציג אירועים שהאפליקציה מתעדת, ולא תוכן פרטי מתוך אפליקציות אחרות.</Text>
               </Panel>
               <Panel>
+                <Text style={s.sectionTitle}>סטטוס הודעות אחרונות</Text>
+                {family.commands?.length ? family.commands.slice(0, 10).map((command) => {
+                  const device = family.children.flatMap((group) => group.devices).find((item) => item.id === command.device_id);
+                  const statusText = command.status === "queued" ? "ממתינה למסירה" : command.status === "delivered" ? "הוצגה במכשיר · ממתינה לאישור" : command.status === "acknowledged" ? "המכשיר אישר קבלה" : command.status === "failed" ? "המסירה נכשלה" : command.status === "expired" ? "פג תוקף" : command.status === "cancelled" ? "בוטלה" : command.status;
+                  return (
+                    <View key={command.id} style={s.commandRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.activityTitle}>{device?.device_label ?? "מכשיר"}</Text>
+                        <Text style={s.small}>{statusText}</Text>
+                        <Text style={s.small}>{new Date(command.created_at).toLocaleString("he-IL")}</Text>
+                      </View>
+                      <View style={s.activityDot} />
+                    </View>
+                  );
+                }) : <Text style={s.body}>הודעות חדשות וסטטוס המסירה שלהן יופיעו כאן.</Text>}
+                <Text style={s.small}>המסירה מתבצעת כשהאפליקציה פתוחה במכשיר. ברקע, קבלת הודעות עדיין אינה מובטחת.</Text>
+              </Panel>
+              <Panel>
                 <Text style={s.sectionTitle}>בהמשך נוסיף</Text>
                 <Text style={s.body}>• התחברות קבועה למורה ללא כניסה חוזרת</Text>
                 <Text style={s.body}>• צירוף מכשירים רבים לאותה סביבת מורה</Text>
@@ -570,6 +603,7 @@ const s = StyleSheet.create({
   pairCodeLabel: { color: C.mint, fontSize: 10, fontWeight: "800" },
   pairCodeValue: { color: C.text, fontSize: 25, fontWeight: "900", letterSpacing: 5, marginVertical: 4 },
   activityRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
+  commandRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line },
   activityTitle: { color: C.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
   activityDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.mint },
   message: { backgroundColor: C.panel2, borderWidth: 1, borderColor: C.line, borderRadius: 13, padding: 13, marginBottom: 12 },
