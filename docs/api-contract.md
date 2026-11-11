@@ -15,6 +15,7 @@ Authenticated teacher operations:
 - `create_child`: create a device group/class group.
 - `create_pairing_code`: generate a short-lived single-use invitation for a device group. The clear code is returned once; only its hash is stored.
 - `send_notice`: queue a visible notice for active devices in a group or selected device IDs.
+- `revoke_device`: revoke an enrolled device, clear its stored server-side credential hash, and record an audit event. The device command API rejects revoked credentials.
 
 Every request is checked against the authenticated teacher's workspace. Unknown fields/actions are rejected. Request bodies are size-limited and writes are audited.
 
