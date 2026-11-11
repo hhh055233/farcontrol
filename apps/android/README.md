@@ -1,23 +1,20 @@
-# Steve Control Android app
+# Steve Control Android
 
-Expo / React Native Android-first app shell.
+Expo / React Native application for a managed school device.
 
-## Run locally
-```bash
-cd apps/android
+## Current implementation
+- Hebrew right-to-left enrollment information screen.
+- Explains the teacher-managed workspace and device permission boundaries.
+- Does not create fake invitations, mock enrolled devices, or claim to have enrolled a device.
+
+## Not connected yet
+Teacher authentication, server-side one-time invitations, device credential issuance, database persistence, heartbeat, policy sync and actual Android management capabilities are not implemented. The enrollment flow must remain unavailable until these services exist and the device user can review and explicitly approve the request.
+
+## Security
+Never put service-role keys or server secrets in the app. Pairing codes must be generated and validated server-side, short-lived, single-use and rate-limited. Store device credentials in Android secure storage and support revocation. Request each Android permission separately with a clear explanation. Do not implement hidden monitoring or bypass OS restrictions.
+
+## Run
+```sh
 npm install
 npx expo start
 ```
-
-Scan the QR code with Expo Go for UI preview. This is not a production device-management app.
-
-## Current scope
-- Hebrew Android prototype screens.
-- Visible enrollment and pairing-code flow prototypes.
-- Explicit demo messaging; no account is created and no pairing request is sent.
-
-## Not implemented yet
-Authentication, database/API connection, real invitation/pairing, device credentials, policy sync, app-usage access, location, notifications, or device restrictions. Do not enter real personal data in this prototype.
-
-## Android capability and privacy
-Only add device capabilities through documented Android APIs and visible permission flows. Do not use hidden monitoring or attempt to bypass OS restrictions. Any production rollout requires privacy review, Play policy review, and real-device tests.
