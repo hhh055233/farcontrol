@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 
 type Device = {
@@ -95,7 +95,7 @@ export default function Home() {
     [classrooms],
   );
 
-  async function signIn(event: React.FormEvent<HTMLFormElement>) {
+  async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return setError("החיבור לשרת עדיין לא הוגדר.");
     setBusy(true); setError(""); setMessage("");
@@ -111,7 +111,7 @@ export default function Home() {
     }
   }
 
-  async function createGroup(classroomId: string) {
+  async function createGroup() {
     const name = window.prompt("שם הקבוצה או הכיתה:");
     if (!name?.trim()) return;
     setBusy(true); setError(""); setMessage("");
@@ -193,7 +193,7 @@ export default function Home() {
             <section className="empty"><h2>לא נמצאה הרשאת מורה פעילה</h2><p>החשבון מחובר, אך עדיין אין לו מרחב מורה מאושר. אין אפשרות לשלוט במכשירים מחשבון ללא הרשאה.</p></section>
           ) : classrooms.map(room => (
             <section className="classroom" key={room.id}>
-              <div className="classroom-head"><div><span className="eyebrow">מרחב בית ספרי</span><h2>{room.name}</h2><small>מורה אחראי: {room.currentTeacher?.displayName ?? session.user.email}</small></div><button className="button button-secondary" disabled={busy} onClick={() => void createGroup(room.id)}>＋ הוספת קבוצה</button></div>
+              <div className="classroom-head"><div><span className="eyebrow">מרחב בית ספרי</span><h2>{room.name}</h2><small>מורה אחראי: {room.currentTeacher?.displayName ?? session.user.email}</small></div><button className="button button-secondary" disabled={busy} onClick={() => void createGroup()}>＋ הוספת קבוצה</button></div>
               {room.children.length === 0 ? <p className="empty-inline">עדיין לא נוצרו קבוצות במרחב הזה.</p> : room.children.map(group => (
                 <article className="group-card" key={group.id}>
                   <div className="group-head"><div><h3>{group.nickname}</h3><span>{group.devices.length} מכשירים משויכים</span></div><button className="button button-primary" disabled={busy} onClick={() => void createPairing(group.id)}>יצירת קוד צימוד</button></div>
