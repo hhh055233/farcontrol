@@ -14,6 +14,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKe
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
+    // Expo SQLite localStorage persists the teacher session across app restarts.
     storage: localStorage,
     autoRefreshToken: true,
     persistSession: true,
