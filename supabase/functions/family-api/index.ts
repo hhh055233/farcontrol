@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
         return reply(403, { error: "device_selection_invalid" });
       }
 
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      // Classroom notices are time-sensitive; never deliver a stale notice the next day.\n      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       const { error: commandError } = await admin.from("device_commands").insert(
         devices.map((device) => ({
           family_id: child.family_id,
