@@ -223,7 +223,7 @@ Deno.serve(async (req: Request) => {
         .update({ status: "revoked", credential_hash: null })
         .eq("id", deviceId)
         .eq("family_id", device.family_id)
-        .eq("status", "active")
+        .neq("status", "revoked")
         .select("id")
         .maybeSingle();
       if (updateError) throw updateError;
