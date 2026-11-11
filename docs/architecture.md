@@ -19,7 +19,7 @@ Row-level security is enabled. Privileged operations run through server-side Sup
 ## Device trust and commands
 - Teacher sessions and device credentials are separate.
 - Pairing codes are generated server-side, short-lived and single-use; only a hash is stored.
-- Device credentials are issued once, stored in Android secure storage and revocable.
+- Device credentials are issued once, stored in Android secure storage and revocable by the teacher; revocation clears the server-side credential hash and changes the device status.
 - Commands are scoped to a device/workspace and have explicit lifecycle states and expiry.
 - Current supported command is `show_notice`, a visible notice in the managed-device app. It is not arbitrary remote control.
 - Device polling currently depends on the managed app being active. Background reliability and physical-device behavior require testing.
