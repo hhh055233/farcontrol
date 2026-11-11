@@ -1,12 +1,7 @@
-name: Android APK check
+name: Android APK build
 
 on:
-  push:
-    branches:
-      - feature/secure-family-backend
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -51,7 +46,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: steve-family-test-apk
+          name: steve-control-test-apk
           path: apps/android/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
