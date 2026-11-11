@@ -13,7 +13,7 @@ Branch: `feature/secure-family-backend`
 - The teacher allowlist has no direct `anon` or `authenticated` table grant; it is read by the server-side service role. Its RLS-without-policy advisor notice is intentional; do not add a public policy.
 - Sensitive RPCs for pairing, teacher approval, and workspace creation are executable only by `service_role`; the reviewed teacher access Edge Function authenticates the user and checks administrator status before invoking administrative RPCs.
 - The device command endpoint hashes device credentials and requires an active device. Polling claims a queued command with a conditional status update to prevent two simultaneous polls from both receiving the same command.
-- Teacher notice requests are restricted to the teacher's own family/group and active devices. The API currently accepts a selection of up to 50 devices; operational acceptance target is 30.
+- Teacher notice requests are restricted to the teacher's own family/group and active devices. The API currently accepts up to 50 devices per request; the operational acceptance target is 30.
 - Pairing codes are one-time, expire after 10 minutes, and pairing attempts are rate-limited by hashed client IP.
 
 ### Findings and remediation
@@ -28,9 +28,22 @@ Branch: `feature/secure-family-backend`
 - Teacher API can queue a visible notice for up to 50 active devices in one request; the acceptance target for this project is 30.
 - Device command polling is indexed on `(device_id, status, created_at)`.
 - Added a unique partial index on `public.devices(credential_hash)` where the value is not null. This prevents duplicate credential hashes and supports device authentication lookup.
-- Added an index on `private.teacher_join_requests(reviewed_by)` for the previously unindexed foreign key.
+- Added an index on `private.teacher_join_requests(reviewed_by)`.
 - Query planning confirms credential lookup uses `devices_credential_hash_unique_idx` and command polling uses `device_commands_device_status_idx`. These are planner checks, not a concurrent load test.
 - Device polling remains foreground-only. Command delivery while the app is backgrounded or closed is not guaranteed.
+
+## Automated staging test
+
+The repository now includes `scripts/load-test-30-devices.mjs`. It is a staging-only end-to-end test that:
+- refuses the production Supabase project ref and requires the exact staging project URL;
+- requires 30 unique test device IDs and device credentials plus a staging teacher session;
+- runs three rounds of teacher notice fan-out to 30 devices, 30 simultaneous device polls, and 30 acknowledgements per round;
+- reports p50/p95/p99 and maximum request latency, and checks for missing, duplicate, or unexpected commands.
+
+Run it only with dedicated staging devices and test accounts:
+`node scripts/load-test-30-devices.mjs`
+
+Required environment variables: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `STEVE_STAGING_PROJECT_REF`, `STEVE_TEST_TEACHER_JWT`, `STEVE_TEST_CHILD_ID`, and `STEVE_TEST_DEVICES_JSON` (an array of 30 objects, each with an `id` and `token`). Never put these values in the repository or chat.
 
 ## Required staging acceptance test
 
@@ -51,6 +64,6 @@ Record request rate, p50/p95/p99 latency, error rate, database CPU/connection us
 ## Remaining hardening
 
 - Enable leaked-password protection in Supabase Auth (manual Dashboard setting; the available project integration cannot change this Auth setting).
-- Create or designate a staging project and run the 30-device acceptance test with independent test credentials.
+- Create or designate a staging project and run the 30-device test script with independent test credentials.
 - Test foreground/background transitions and Android process restarts on physical Android devices.
-- Review dependency advisories against the actual lockfile/CI audit output before release. The repository root has no `package-lock.json`, so do not infer the exact vulnerable packages from the previous Render warning alone.
+- Review dependency advisories against the actual lockfile/CI audit output before release. The repository root has no `package-lock.json`, so do not infer exact vulnerable packages from the earlier Render warning alone.
