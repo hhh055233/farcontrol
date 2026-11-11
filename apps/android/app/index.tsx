@@ -4,6 +4,7 @@ import {
   SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import * as WebBrowser from "expo-web-browser";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 type Mode = "signup" | "signin";
@@ -66,6 +67,7 @@ export default function Home() {
   const [deviceLabel, setDeviceLabel] = useState("");
   const [childDevice, setChildDevice] = useState<{ deviceId: string; childName: string; familyName: string } | null>(null);
   const [hasSavedChildToken, setHasSavedChildToken] = useState(false);
+  const [accessStatus, setAccessStatus] = useState<"unknown" | "pending" | "approved" | "admin" | "error">("unknown");
 
   const loadOverview = useCallback(async () => {
     if (!supabase) return;
@@ -74,6 +76,7 @@ export default function Home() {
       body: { action: "overview" },
     });
     if (!error && data?.families) {
+      setAccessStatus("approved");
       const nextFamilies = data.families as Family[];
       setFamilies(nextFamilies);
       const activeIds = new Set(nextFamilies.flatMap((item) => item.children.flatMap((group) =>
@@ -82,7 +85,8 @@ export default function Home() {
       setSelectedDeviceIds((current) => current.filter((id) => activeIds.has(id)));
     } else if (error) {
       setFamilies([]);
-      setMessage("אין לחשבון הזה הרשאת מורה. הגישה ניתנת רק לכתובות אימייל שאושרו מראש על ידי בית הספר.");
+      setAccessStatus("error");
+      setMessage("אין לחשבון הזה הרשאת מורה פעילה. התחברו דרך Google ובקשו אישור מהמנהל.");
     }
     setLoadingOverview(false);
   }, []);
@@ -103,34 +107,100 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
 
+  async function handleTeacherAccess() {
+    if (!supabase) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const session = sessionData.session;
+    if (!session) return;
+    const providers = session.user.app_metadata?.providers;
+    const isGoogle = session.user.app_metadata?.provider === "google" ||
+      (Array.isArray(providers) && providers.includes("google"));
+    if (!isGoogle) {
+      setAccessStatus("approved");
+      await loadOverview();
+      return;
+    }
+    const { data: adminData, error: adminError } = await supabase.functions.invoke("teacher-access-api", {
+      body: { action: "list_requests" },
+    });
+    if (!adminError && Array.isArray(adminData?.requests)) {
+      setAccessStatus("admin");
+      setFamilies([]);
+      setMessage("חשבון מנהל זוהה. אישור מורים מתבצע בלוח הניהול המאובטח באתר Steve Control.");
+      return;
+    }
+    const { data: requestData, error: requestError } = await supabase.functions.invoke("teacher-access-api", {
+      body: { action: "submit_request", displayName: String(session.user.user_metadata?.full_name ?? displayName) },
+    });
+    if (requestError || requestData?.error) {
+      setAccessStatus("error");
+      setMessage("לא הצלחנו לשלוח בקשת הצטרפות. התחברו דרך Google ונסו שוב.");
+      return;
+    }
+    const status = String(requestData?.request?.status ?? "pending");
+    if (status === "approved") {
+      setAccessStatus("approved");
+      await loadOverview();
+    } else {
+      setAccessStatus("pending");
+      setFamilies([]);
+      setMessage("בקשת ההצטרפות נשלחה וממתינה לאישור מנהל Steve Control. עד לאישור אין גישה לניהול מכשירים.");
+    }
+  }
+
+  async function signInWithGoogle() {
+    if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
+    setBusy(true); setMessage("");
+    try {
+      const redirectTo = "stevecontrol://auth/callback";
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo, skipBrowserRedirect: true, queryParams: { prompt: "select_account" } },
+      });
+      if (error || !data.url) throw error ?? new Error("לא התקבל קישור התחברות.");
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type !== "success" || !result.url) return;
+      const callback = new URL(result.url);
+      const code = callback.searchParams.get("code");
+      if (!code) throw new Error("Google לא החזיר קוד התחברות תקין.");
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+      if (exchangeError) throw exchangeError;
+      setMessage("התחברות Google הושלמה. בודקים את הרשאת המורה...");
+      await handleTeacherAccess();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "התחברות Google נכשלה.");
+    } finally { setBusy(false); }
+  }
+
   useEffect(() => {
     if (!supabase) return;
     let alive = true;
     supabase.auth.getSession().then(({ data, error }) => {
       if (alive && !error) {
         setUserEmail(data.session?.user.email ?? null);
-        if (data.session) void loadOverview();
+        if (data.session) void handleTeacherAccess();
       }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!alive) return;
       setUserEmail(session?.user.email ?? null);
       if (session) {
-        setTimeout(() => { if (alive) void loadOverview(); }, 0);
+        setTimeout(() => { if (alive) void handleTeacherAccess(); }, 0);
       } else {
         setFamilies([]);
+        setAccessStatus("unknown");
       }
     });
     return () => { alive = false; data.subscription.unsubscribe(); };
   }, [loadOverview]);
 
   useEffect(() => {
-    if (!userEmail) return;
+    if (!userEmail || accessStatus !== "approved") return;
     const timer = setInterval(() => {
       if (AppState.currentState === "active") void loadOverview();
     }, 30000);
     return () => clearInterval(timer);
-  }, [userEmail, loadOverview]);
+  }, [userEmail, accessStatus, loadOverview]);
 
   async function resendVerification() {
     if (!supabase) return;
@@ -428,6 +498,8 @@ export default function Home() {
             </Panel>
           ) : !userEmail ? (
             <Panel>
+              <Button title="המשך עם Google" onPress={signInWithGoogle} disabled={busy || !isSupabaseConfigured} busy={busy} />
+              <Text style={s.small}>לאחר ההתחברות תישלח בקשת אישור למנהל. רק לאחר אישור תיפתח גישת המורה.</Text>
               <View style={s.tabs}>
                 <Pressable onPress={() => setMode("signup")} style={[s.tab, mode === "signup" && s.activeTab]}><Text style={s.tabText}>יצירת חשבון</Text></Pressable>
                 <Pressable onPress={() => setMode("signin")} style={[s.tab, mode === "signin" && s.activeTab]}><Text style={s.tabText}>התחברות</Text></Pressable>
@@ -437,6 +509,10 @@ export default function Home() {
               <Button title={mode === "signup" ? "יצירת חשבון מורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
               {mode === "signup" ? <Pressable style={s.selectAll} onPress={resendVerification} disabled={busy}><Text style={s.selectAllText}>שליחה חוזרת של אימייל אימות</Text></Pressable> : null}
             </Panel>
+          ) : accessStatus === "pending" ? (
+            <Panel><Text style={s.sectionTitle}>הבקשה ממתינה לאישור</Text><Text style={s.body}>החשבון זוהה, אך אין עדיין הרשאה לניהול מכשירים.</Text></Panel>
+          ) : accessStatus === "admin" ? (
+            <Panel><Text style={s.sectionTitle}>חשבון מנהל</Text><Text style={s.body}>פתחו את לוח הניהול באתר Steve Control כדי לאשר או לבטל הרשאות מורים.</Text></Panel>
           ) : loadingOverview ? (
             <Panel><ActivityIndicator color={C.mint} /><Text style={s.body}>טוענים את הכיתה...</Text></Panel>
           ) : !family ? (
