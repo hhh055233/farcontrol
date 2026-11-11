@@ -71,12 +71,12 @@ Deno.serve(async (req: Request) => {
       const nickname = cleanText(body.nickname);
       if (!nickname) return reply(400, { error: "invalid_request" });
 
-      const { data, error } = await admin.rpc("create_child_for_parent", {
+      const { data, error } = await admin.rpc("create_device_group_for_teacher", {
         p_user_id: user.id,
         p_nickname: nickname,
       });
       if (error) {
-        if (error.code === "P0002") return reply(403, { error: "parent_family_required" });
+        if (error.code === "P0002") return reply(403, { error: "teacher_family_required" });
         if (error.code === "22023") return reply(400, { error: "invalid_request" });
         throw error;
       }
@@ -92,10 +92,10 @@ Deno.serve(async (req: Request) => {
         .from("family_members")
         .select("id,family_id")
         .eq("auth_user_id", user.id)
-        .eq("role", "parent")
+        .eq("role", "teacher")
         .eq("is_active", true);
       if (membershipError) throw membershipError;
-      if (!memberships?.length) return reply(403, { error: "parent_family_required" });
+      if (!memberships?.length) return reply(403, { error: "teacher_family_required" });
 
       const { data: child, error: childError } = await admin
         .from("child_profiles")
@@ -105,8 +105,8 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (childError) throw childError;
       if (!child) return reply(404, { error: "child_not_found" });
-      const parent = memberships.find((m) => m.family_id === child.family_id);
-      if (!parent) return reply(403, { error: "parent_family_required" });
+      const teacher = memberships.find((m) => m.family_id === child.family_id);
+      if (!teacher) return reply(403, { error: "teacher_family_required" });
 
       const { data: recent, error: recentError } = await admin
         .from("pairing_codes")
@@ -133,17 +133,17 @@ Deno.serve(async (req: Request) => {
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       const { error: insertError } = await admin.from("pairing_codes").insert({
-        family_id: parent.family_id,
+        family_id: teacher.family_id,
         child_profile_id: childId,
         code_hash: codeHash,
         expires_at: expiresAt,
-        created_by_member_id: parent.id,
+        created_by_member_id: teacher.id,
       });
       if (insertError) throw insertError;
 
       const { error: auditError } = await admin.from("audit_events").insert({
-        family_id: parent.family_id,
-        actor_member_id: parent.id,
+        family_id: teacher.family_id,
+        actor_member_id: teacher.id,
         subject_child_id: childId,
         event_type: "device.pairing_code_created",
         event_data: { deviceLabel, expiresAt },
@@ -163,7 +163,7 @@ Deno.serve(async (req: Request) => {
         .from("family_members")
         .select("id,family_id")
         .eq("auth_user_id", user.id)
-        .eq("role", "parent")
+        .eq("role", "teacher")
         .eq("is_active", true);
       if (membershipError) throw membershipError;
       if (!memberships?.length) return reply(403, { error: "teacher_required" });
@@ -232,7 +232,7 @@ Deno.serve(async (req: Request) => {
         .from("family_members")
         .select("id,family_id,display_name,role")
         .eq("auth_user_id", user.id)
-        .eq("role", "parent")
+        .eq("role", "teacher")
         .eq("is_active", true);
       if (memberError) throw memberError;
 
@@ -273,7 +273,7 @@ Deno.serve(async (req: Request) => {
 
         families.push({
           ...family,
-          currentParent: { id: membership.id, displayName: membership.display_name },
+          currentTeacher: { id: membership.id, displayName: membership.display_name },
           activity: activity ?? [],
           children: (children ?? []).map((child) => ({
             ...child,
