@@ -30,6 +30,7 @@ Deno.serve(async (req: Request) => {
   const { data: authData, error: authError } = await admin.auth.getUser(token);
   const user = authData?.user;
   if (authError || !user) return reply(401, { error: "unauthorized" });
+  if (!user.email_confirmed_at) return reply(403, { error: "email_not_verified" });
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
   if (contentLength > 8192) return reply(413, { error: "payload_too_large" });
