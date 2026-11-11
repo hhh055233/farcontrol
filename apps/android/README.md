@@ -7,7 +7,7 @@ Expo / React Native Android application for teachers and enrolled school devices
 - Teacher access check and pending/approved status.
 - Teacher dashboard for classrooms, device groups and enrolled devices.
 - Server-generated, single-use device pairing codes.
-- Device-side pairing and secure storage of the issued device credential.
+- Device-side pairing requires an explicit confirmation and stores the issued credential in Android secure storage.
 - Device command polling and acknowledgement.
 - Visible notice commands only.
 
