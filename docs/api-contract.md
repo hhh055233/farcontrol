@@ -1,4 +1,4 @@
-# Steve Family API contract (v1 draft)
+# Steve Control API contract (v1 draft)
 
 This is the contract for the first secure vertical slice. It is a specification, not a claim that these endpoints are deployed.
 
