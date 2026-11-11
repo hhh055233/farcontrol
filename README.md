@@ -42,4 +42,4 @@ Web: `npm install && npm run dev`
 
 Android: `cd apps/android && npm install && npx expo start`
 
-CI runs web typecheck/build and Android TypeScript validation.
+CI runs web typecheck/build, Android TypeScript validation and Supabase Edge Function typechecking. A test APK can be built from the Android APK workflow in GitHub Actions.
