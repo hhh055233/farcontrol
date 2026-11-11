@@ -14,7 +14,7 @@ Steve Control is an Android-first school device-management system.
 - Supabase Edge Functions are deployed: `family-api`, `teacher-access-api`, `redeem-pairing`, and `device-command-api`.
 - Web dashboard and Android app are connected to the Supabase project using client-safe publishable configuration.
 - Google teacher sign-in, teacher access requests and admin approval flow are implemented in the deployed backend.
-- Teacher dashboard supports classroom/device-group creation, one-time device pairing and sending a visible notice command to enrolled devices.
+- Teacher dashboard supports classroom/device-group creation, one-time device pairing and sending a visible notice command to enrolled devices, and revoking device credentials.
 - The Android app includes teacher and managed-device flows, secure storage for device credentials and command polling.
 
 ## Important limits
