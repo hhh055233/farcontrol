@@ -7,7 +7,7 @@
     "userInterfaceStyle": "dark",
     "scheme": "stevecontrol",
     "android": {
-      "package": "com.stevefamily.app",
+      "package": "com.stevecontrol.app",
       "versionCode": 1,
       "permissions": []
     },
