@@ -1,4 +1,4 @@
-# Steve Family Android app
+# Steve Control Android app
 
 Expo / React Native Android-first app shell.
 
@@ -12,9 +12,8 @@ npx expo start
 Scan the QR code with Expo Go for UI preview. This is not a production device-management app.
 
 ## Current scope
-- Parent/child role preview screens.
-- RTL Hebrew interface.
-- Family-name and pairing-code input prototypes.
+- Hebrew Android prototype screens.
+- Visible enrollment and pairing-code flow prototypes.
 - Explicit demo messaging; no account is created and no pairing request is sent.
 
 ## Not implemented yet
