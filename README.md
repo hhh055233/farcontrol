@@ -28,7 +28,7 @@ Steve Control is an Android-first school device-management system.
 - `app/`: Next.js teacher dashboard.
 - `apps/android/`: Expo Android app.
 - `supabase/functions/`: Edge Function source matching deployed services.
-- `supabase/migrations/`: tracked database migration history.
+- `supabase/migrations/`: source migrations currently recovered into the repository. The live Supabase project has additional applied migration versions whose source still needs to be reconciled before recreating the database from scratch.
 - `docs/`: architecture and API contract.
 
 ## Android identity
