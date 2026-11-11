@@ -1,27 +1,27 @@
 # Steve Control
 
-מערכת לניהול מכשירי Android במסגרת בית ספרית, עם ממשק מנהל/ת ומכשירים מנוהלים.
+Steve Control is an Android-first school device-management project.
 
-## החלטות מוצר
-- **Android בלבד** בשלב זה. אין תמיכה ב־iPhone או ב־iOS בתוכנית הנוכחית.
-- המורה/המנהל/ת הוא/היא מנהל/ת המערכת היחיד/ה.
-- ניתן לנהל מספר מכשירים מאותו חשבון מנהל/ת.
-- הצטרפות מכשיר מתבצעת בהסכמה, באישור גלוי ובהרשאות Android נתמכות.
+## Product model
+- One teacher is the sole administrator of a classroom workspace in the initial version.
+- The teacher can manage enrolled school phones and tablets from the teacher's own phone or tablet.
+- The initial target is to support 1, 20 or 50 enrolled devices; computer management is a later phase.
+- Each device must be enrolled transparently. The person using it sees the school/teacher identity, requested permissions and data-sharing explanation, and explicitly confirms enrollment on that device.
+- No hidden monitoring, covert data collection or unrestricted remote control.
 
-## יכולות מתוכננות
-- ניהול מכשירים וקבוצות מכשירים.
-- מדיניות שימוש ולוחות זמנים, בכפוף ליכולות Android ולהרשאות ניהול מתאימות.
-- דוחות סטטוס ויומן פעולות שקוף.
-- תהליך שיוך מאובטח עם קוד חד־פעמי ואישור במכשיר.
+## Repository
+- `app/`: Next.js teacher dashboard prototype.
+- `apps/android/`: Expo Android device-enrollment prototype.
+- `database/schema.sql`: draft PostgreSQL schema for teacher workspaces and enrolled devices.
+- `docs/`: architecture and API contract drafts.
 
-## גבולות טכניים ובטיחות
-היקף השליטה תלוי בגרסת Android, ביצרן המכשיר, בהרשאות ובמצב ההרשמה. לא נעקוף מנגנוני אבטחה, לא נסתיר ניטור ולא נבטיח שליטה שאינה נתמכת על ידי Android. יכולות ניהול מתקדמות דורשות הרשאות מערכת ומצב ניהול מכשיר ייעודי, ככל שנתמך ומאושר.
+## Current status
+The web dashboard and Android screen are visual/local prototypes. Authentication, secure pairing, API endpoints, device sync, real policy enforcement and APK builds are not implemented yet. Demo actions do not control real devices.
 
-## מצב הפרויקט
-האתר הנוכחי הוא **אב־טיפוס חזותי בלבד** שנבנה ב־Next.js. הנתונים והמתגים בו הם נתוני הדגמה מקומיים; עדיין אין התחברות אמיתית, מסד נתונים, שיוך מכשירים או אכיפת מדיניות במכשירים.
+## Android identity
+- App name: Steve Control
+- Expo slug: `steve-control`
+- Android application ID: `com.stevecontrol.app`
 
-## פיתוח האתר
-האתר משתמש ב־Next.js וב־TypeScript. להרצה מקומית: `npm install` ואז `npm run dev`.
-
-## אפליקציית Android
-קוד האפליקציה הראשוני נמצא ב־`apps/android/` ומבוסס Expo + React Native. הוראות הרצה ומגבלות מופיעות ב־[`apps/android/README.md`](apps/android/README.md). כרגע אין עדיין חיבור לשרת או APK מוכן להתקנה.
+## Safety and platform limits
+Android capabilities depend on OS version, manufacturer, explicit permissions, supported managed-device provisioning and applicable platform policies. An ordinary app cannot silently control arbitrary apps or devices. Features must be implemented and tested individually, with clear user-facing permission and revocation flows.
