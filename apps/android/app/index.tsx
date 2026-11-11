@@ -222,7 +222,7 @@ export default function Home() {
     if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
     const cleanEmail = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) return setMessage("נא להזין אימייל תקין.");
-    if (password.length < 8) return setMessage("הסיסמה חייבת להכיל לפחות 8 תווים.");
+    if (password.length < 8) return setMessage("הסיסמה חייבת להכיל הזינו סיסמה.");
     setBusy(true); setMessage("");
     try {
       if (mode === "signup") {
@@ -488,8 +488,8 @@ export default function Home() {
                 <>
                   <Text style={s.sectionTitle}>חיבור מכשיר</Text>
                   <Text style={s.body}>בקשו מהמורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
-                  <Field label="שם המכשיר" value={deviceLabel} onChangeText={setDeviceLabel} placeholder="לדוגמה: טאבלט 1" />
-                  <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="0000000000" keyboardType="numeric" maxLength={10} />
+                  <Field label="שם המכשיר" value={deviceLabel} onChangeText={setDeviceLabel} placeholder="שם המכשיר" />
+                  <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="קוד בן 10 ספרות" keyboardType="numeric" maxLength={10} />
                   <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
                   <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
                 </>
@@ -504,7 +504,7 @@ export default function Home() {
                 <Pressable onPress={() => setMode("signup")} style={[s.tab, mode === "signup" && s.activeTab]}><Text style={s.tabText}>יצירת חשבון</Text></Pressable>
                 <Pressable onPress={() => setMode("signin")} style={[s.tab, mode === "signin" && s.activeTab]}><Text style={s.tabText}>התחברות</Text></Pressable>
               </View>
-              <Field label="אימייל" value={email} onChangeText={setEmail} placeholder="name@example.com" />
+              <Field label="אימייל" value={email} onChangeText={setEmail} placeholder="כתובת אימייל" />
               <Field label="סיסמה" value={password} onChangeText={setPassword} placeholder="לפחות 8 תווים" secure />
               <Button title={mode === "signup" ? "יצירת חשבון מורה" : "התחברות"} onPress={submitAuth} disabled={busy || !isSupabaseConfigured} busy={busy} />
               {mode === "signup" ? <Pressable style={s.selectAll} onPress={resendVerification} disabled={busy}><Text style={s.selectAllText}>שליחה חוזרת של אימייל אימות</Text></Pressable> : null}
@@ -518,7 +518,7 @@ export default function Home() {
           ) : !family ? (
             <Panel>
               <Text style={s.sectionTitle}>הקמת סביבת ההוראה</Text>
-              <Field label="שם הכיתה או בית הספר" value={familyName} onChangeText={setFamilyName} placeholder="כיתה ז׳1" />
+              <Field label="שם הכיתה או בית הספר" value={familyName} onChangeText={setFamilyName} placeholder="שם הכיתה" />
               <Field label="שם המורה" value={displayName} onChangeText={setDisplayName} placeholder="שם המורה" />
               <Button title="יצירת כיתה" onPress={createFamily} disabled={busy} busy={busy} />
               <Text style={s.small}>סביבת הניהול תישמר בחשבון המורה. ההתחברות נשמרת במכשיר באופן אוטומטי.</Text>
@@ -582,7 +582,7 @@ export default function Home() {
               </Panel>
               <Panel>
                 <Text style={s.sectionTitle}>הוספת מכשיר לקבוצה</Text>
-                <Field label="שם הקבוצה" value={childName} onChangeText={setChildName} placeholder="טאבלטים כיתה ז׳1" />
+                <Field label="שם הקבוצה" value={childName} onChangeText={setChildName} placeholder="שם קבוצת המכשירים" />
                 <Button title="הוספת מכשיר" onPress={createChild} disabled={busy} busy={busy} />
               </Panel>
               <Panel>
