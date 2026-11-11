@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Steve Family — ניהול משפחתי חכם",
-  description: "מרכז משפחתי לניהול זמן מסך והרשאות מכשירים בשקיפות ובבטחה.",
+  title: "Steve Control — ניהול מכשירי בית הספר",
+  description: "לוח בקרה למורים לניהול שקוף ומאושר של מכשירי בית הספר.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
