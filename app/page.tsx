@@ -313,7 +313,7 @@ export default function Home() {
                       <div className="device" key={device.id}><span className={`status-dot ${device.status === "active" ? "status-active" : ""}`} /><div><strong>{device.device_label || "טאבלט"}</strong><small>{device.status === "active" ? "רשום ומורשה" : "לא פעיל"} · {device.last_seen_at ? `נראה לאחרונה ${new Date(device.last_seen_at).toLocaleString("he-IL")}` : "טרם נרשם חיבור"}</small></div></div>
                     ))}
                   </div>
-                  <div className="notice-form"><label>הודעה שתוצג בטאבלטים בקבוצה<textarea maxLength={200} value={noticeDrafts[group.id] ?? ""} onChange={e => setNoticeDrafts(current => ({ ...current, [group.id]: e.target.value }))} placeholder="לדוגמה: פתחו את סביבת הלמידה לשיעור" /></label><button className="button button-secondary" disabled={busy || !group.devices.some(d => d.status === "active")} onClick={() => void sendNotice(group.id)}>שליחת הודעה לכל המכשירים הפעילים</button></div>
+                  <div className="notice-form"><label>הודעה שתוצג בטאבלטים בקבוצה<textarea maxLength={200} value={noticeDrafts[group.id] ?? ""} onChange={e => setNoticeDrafts(current => ({ ...current, [group.id]: e.target.value }))} placeholder="הודעה קצרה מהמורה" /></label><button className="button button-secondary" disabled={busy || !group.devices.some(d => d.status === "active")} onClick={() => void sendNotice(group.id)}>שליחת הודעה לכל המכשירים הפעילים</button></div>
                 </article>
               ))}
             </section>
