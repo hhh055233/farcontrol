@@ -1,7 +1,7 @@
-# Steve Family — architecture for 100+ families
+# Steve Control — architecture for 100+ families
 
 ## Product boundary
-Steve Family is an Android-first family-management product. The parent and child experiences are installed Android apps. The existing Next.js site remains the web-based parent dashboard/admin surface; it is not the child-device agent.
+Steve Control is an Android-first family-management product. The parent and child experiences are installed Android apps. The existing Next.js site remains the web-based parent dashboard/admin surface; it is not the child-device agent.
 
 The first production milestone is a secure, usable family system, not a promise of every parental-control feature. All device enrollment is visible and requires an authorized adult and the device user's appropriate participation. No hidden tracking, covert collection, accessibility-service abuse, or bypass of Android security controls.
 
