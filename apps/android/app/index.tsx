@@ -81,7 +81,8 @@ export default function Home() {
       )));
       setSelectedDeviceIds((current) => current.filter((id) => activeIds.has(id)));
     } else if (error) {
-      setMessage("לא הצלחנו לטעון את נתוני הכיתה. בדקו חיבור ואימות כתובת המייל, ונסו לרענן.");
+      setFamilies([]);
+      setMessage("אין לחשבון הזה הרשאת מורה. הגישה ניתנת רק לכתובות אימייל שאושרו מראש על ידי בית הספר.");
     }
     setLoadingOverview(false);
   }, []);
@@ -158,8 +159,8 @@ export default function Home() {
         const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password });
         if (error) throw error;
         setMessage(data.session
-          ? "החשבון נוצר. אפשר להקים עכשיו את הכיתה."
-          : "נשלח אימייל אישור. אשרו את הכתובת ואז התחברו.");
+          ? "החשבון נוצר. לאחר אימות האימייל, הגישה תתאפשר רק אם הכתובת אושרה על ידי בית הספר."
+          : "נשלח אימייל אישור. לאחר האישור, רק כתובות שאושרו על ידי בית הספר יוכלו להשתמש במערכת.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
         if (error) throw error;
