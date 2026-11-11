@@ -1,20 +1,27 @@
 # Steve Control Android
 
-Expo / React Native application for a managed school device.
+Expo / React Native Android application for teachers and enrolled school devices.
 
-## Current implementation
-- Hebrew right-to-left enrollment information screen.
-- Explains the teacher-managed workspace and device permission boundaries.
-- Does not create fake invitations, mock enrolled devices, or claim to have enrolled a device.
+## Implemented
+- Google sign-in through Supabase Auth.
+- Teacher access check and pending/approved status.
+- Teacher dashboard for classrooms, device groups and enrolled devices.
+- Server-generated, single-use device pairing codes.
+- Device-side pairing and secure storage of the issued device credential.
+- Device command polling and acknowledgement.
+- Visible notice commands only.
 
-## Not connected yet
-Teacher authentication, server-side one-time invitations, device credential issuance, database persistence, heartbeat, policy sync and actual Android management capabilities are not implemented. The enrollment flow must remain unavailable until these services exist and the device user can review and explicitly approve the request.
+## Device-control boundary
+The current command queue supports a visible notice. It does not silently open apps, block apps, lock settings, monitor activity or provide unrestricted remote control. Additional Android management capabilities require documented platform APIs, explicit permissions and/or managed-device provisioning.
 
-## Security
-Never put service-role keys or server secrets in the app. Pairing codes must be generated and validated server-side, short-lived, single-use and rate-limited. Store device credentials in Android secure storage and support revocation. Request each Android permission separately with a clear explanation. Do not implement hidden monitoring or bypass OS restrictions.
+## Backend
+The app uses the Steve Control Supabase project through a public publishable key. The service-role key is never stored in the Android app. Supabase Edge Functions and migrations are tracked in the repository.
 
 ## Run
 ```sh
 npm install
 npx expo start
 ```
+
+## Build status
+An installable APK and physical-device end-to-end test are still required before rollout. The repository CI checks TypeScript and web production build; it does not prove that device management works on every Android model.
