@@ -63,6 +63,7 @@ export default function Home() {
   const [loadingOverview, setLoadingOverview] = useState(false);
   const [pairingCodes, setPairingCodes] = useState<Record<string, { code: string; expiresAt: string }>>({});
   const [pairingCodeInput, setPairingCodeInput] = useState("");
+  const [deviceLabel, setDeviceLabel] = useState("");
   const [childDevice, setChildDevice] = useState<{ deviceId: string; childName: string; familyName: string } | null>(null);
   const [hasSavedChildToken, setHasSavedChildToken] = useState(false);
 
@@ -272,7 +273,7 @@ export default function Home() {
     setBusy(true); setMessage("");
     try {
       const { data, error } = await supabase.functions.invoke("redeem-pairing", {
-        body: { code, deviceLabel: "מכשיר Android" },
+        body: { code, deviceLabel: deviceLabel.trim() || "מכשיר Android" },
       });
       if (error) throw error;
       if (data?.error) {
@@ -416,6 +417,7 @@ export default function Home() {
                 <>
                   <Text style={s.sectionTitle}>חיבור מכשיר</Text>
                   <Text style={s.body}>בקשו מהמורה ליצור קוד צימוד במסך שלו, והזינו כאן את הקוד בן 10 הספרות. הקוד תקף ל־10 דקות ומשמש פעם אחת בלבד.</Text>
+                  <Field label="שם המכשיר" value={deviceLabel} onChangeText={setDeviceLabel} placeholder="לדוגמה: טאבלט 1" />
                   <Field label="קוד צימוד" value={pairingCodeInput} onChangeText={(v) => setPairingCodeInput(v.replace(/\D/g, "").slice(0, 10))} placeholder="0000000000" keyboardType="numeric" maxLength={10} />
                   <Button title="צימוד המכשיר" onPress={redeemChildPairing} disabled={busy || pairingCodeInput.length !== 10} busy={busy} />
                   <Text style={s.small}>לאחר הצימוד, אסימון המכשיר נשמר באחסון המאובטח של Android.</Text>
@@ -503,7 +505,7 @@ export default function Home() {
               </Panel>
               <Panel>
                 <Text style={s.sectionTitle}>הוספת מכשיר לקבוצה</Text>
-                <Field label="שם המכשיר או התלמיד" value={childName} onChangeText={setChildName} placeholder="טאבלט כיתה 1" />
+                <Field label="שם הקבוצה" value={childName} onChangeText={setChildName} placeholder="טאבלטים כיתה ז׳1" />
                 <Button title="הוספת מכשיר" onPress={createChild} disabled={busy} busy={busy} />
               </Panel>
               <Panel>
