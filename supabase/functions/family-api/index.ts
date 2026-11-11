@@ -32,6 +32,22 @@ Deno.serve(async (req: Request) => {
   if (authError || !user) return reply(401, { error: "unauthorized" });
   if (!user.email_confirmed_at) return reply(403, { error: "email_not_verified" });
 
+  // Teacher access is granted only to addresses explicitly approved by the school.
+  // Fail closed if the allowlist cannot be read; never trust client-provided roles.
+  const teacherEmail = (user.email ?? "").trim().toLowerCase();
+  if (!teacherEmail) return reply(403, { error: "teacher_not_approved" });
+  const { data: approvedTeacher, error: allowlistError } = await admin
+    .from("teacher_email_allowlist")
+    .select("email")
+    .eq("email", teacherEmail)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (allowlistError) {
+    console.error("teacher allowlist lookup failed", allowlistError.message);
+    return reply(503, { error: "authorization_unavailable" });
+  }
+  if (!approvedTeacher) return reply(403, { error: "teacher_not_approved" });
+
   // Enforce the request limit on actual bytes; Content-Length is optional
   // and must not be trusted as the only size check.
   let rawBody: string;
