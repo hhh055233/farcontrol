@@ -263,7 +263,7 @@ export default function Home() {
     let polling = false;
     let token = "";
     const poll = async () => {
-      if (!alive || polling || !token) return;
+      if (!alive || polling || !token || AppState.currentState !== "active") return;
       polling = true;
       try {
         const { data, error } = await supabase!.functions.invoke("device-command-api", {
