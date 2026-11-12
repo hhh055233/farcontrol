@@ -1,5 +1,5 @@
 name: Android APK build
-# Explicitly triggered only after the code-validation workflow passes.
+# Build a standalone Release APK and verify its embedded React Native bundle before upload.
 
 on:
   workflow_dispatch:
@@ -44,11 +44,25 @@ jobs:
           EXPO_NO_TELEMETRY: '1'
         run: npx expo prebuild --platform android --no-install
 
-      - name: Build installable test APK
+      - name: Build installable Release APK
         working-directory: apps/android/android
-        run: ./gradlew assembleRelease
+        run: ./gradlew --no-daemon assembleRelease
 
-      - name: Upload APK
+      - name: Verify standalone JavaScript bundle is packaged
+        working-directory: apps/android/android
+        shell: bash
+        run: |
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          if unzip -l "$APK" | grep -qE 'assets/index\.android\.bundle|assets/index\.android\.bundle\.hbc'; then
+            echo "Verified: Android JavaScript bundle is packaged in the Release APK."
+          else
+            echo "ERROR: Release APK does not contain the embedded Android JavaScript bundle."
+            unzip -l "$APK" | head -80
+            exit 1
+          fi
+
+      - name: Upload verified APK
         uses: actions/upload-artifact@v4
         with:
           name: steve-control-test-apk
