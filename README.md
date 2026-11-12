@@ -1,13 +1,14 @@
 # Steve Control
 
-Steve Control is an Android-first school device-management system.
+Steve Control is a school device-management system with one teacher/admin console for up to 50 explicitly enrolled devices. The target platforms are Windows computers and Android phones/tablets first, followed by macOS and supported iOS/iPadOS management.
 
 ## Product model
 - Each classroom workspace has one teacher administrator.
 - The teacher uses a phone, tablet or web dashboard to manage enrolled school devices.
 - Devices join through a short-lived, single-use invitation and a visible confirmation on the device.
-- The initial scale target is 1, 20 or 50 enrolled devices. Computer management is a later phase.
-- No hidden monitoring or unrestricted remote control.
+- The initial capacity target is 1, 20 or 50 enrolled devices.
+- The product roadmap includes Windows and Android first, then macOS and supported iOS/iPadOS management.
+- Remote viewing/control must be visible to the device user, authorized, auditable and stoppable locally. No hidden monitoring or unrestricted access to arbitrary devices.
 
 ## Current implementation
 - Supabase project is active and contains the teacher-only workspace schema, row-level security, pairing tables, teacher authorization and device-command queue.
@@ -20,16 +21,20 @@ Steve Control is an Android-first school device-management system.
 ## Important limits
 - The only device command currently supported is a visible on-screen notice. This is not remote screen control, app blocking, installation control or full device management.
 - A command is delivered only while the managed-device app is active and polling.
-- Android capabilities beyond this require supported Android APIs, explicit permissions and/or fully managed device provisioning.
+- There is currently no Windows/macOS device agent or remote desktop implementation in this repository.
+- Android capabilities beyond the existing notice require supported Android APIs, explicit permissions and/or fully managed device provisioning.
+- iOS/iPadOS do not permit unrestricted third-party remote control of the interface; support will be limited to platform-approved management and user-initiated sharing.
 - Actual device enrollment and command delivery must be tested on physical devices before school deployment.
-- The production database schema is managed by ordered migrations in `supabase/migrations/`. Do not run `database/schema.sql`; it is a pointer to the migration history.
+
+## Roadmap
+See [the multi-device remote-control roadmap](docs/multi-device-remote-control-roadmap.md) for architecture, security requirements, platform boundaries, delivery phases and acceptance criteria.
 
 ## Repository
 - `app/`: Next.js teacher dashboard.
 - `apps/android/`: Expo Android app.
 - `supabase/functions/`: Edge Function source matching deployed services.
 - `supabase/migrations/`: source migrations currently recovered into the repository. The live Supabase project has additional applied migration versions whose source still needs to be reconciled before recreating the database from scratch.
-- `docs/`: architecture and API contract.
+- `docs/`: architecture, API contract and implementation roadmap.
 
 ## Android identity
 - App name: Steve Control
