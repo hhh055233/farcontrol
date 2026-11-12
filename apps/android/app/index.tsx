@@ -338,6 +338,68 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  async function sendNoticeToSelected() {
+    if (!supabase || !family) return;
+    const messageText = noticeDraft.trim();
+    if (!messageText || messageText.length > 200) {
+      setMessage("יש לכתוב הודעה קצרה של עד 200 תווים.");
+      return;
+    }
+    const selected = new Set(selectedDeviceIds);
+    const groups = family.children
+      .map((group) => ({
+        childId: group.id,
+        deviceIds: group.devices
+          .filter((device) => device.status === "active" && selected.has(device.id))
+          .map((device) => device.id),
+      }))
+      .filter((group) => group.deviceIds.length > 0);
+    const targetCount = groups.reduce((sum, group) => sum + group.deviceIds.length, 0);
+    if (!targetCount) {
+      setMessage("בחרו לפחות מכשיר פעיל אחד.");
+      return;
+    }
+    if (targetCount > 50) {
+      setMessage("אפשר לשלוח פקודה לעד 50 מכשירים בכל פעם.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+    const succeeded = new Set<string>();
+    const failures: string[] = [];
+    try {
+      for (const group of groups) {
+        const { data, error } = await supabase.functions.invoke("family-api", {
+          body: {
+            action: "send_notice",
+            childId: group.childId,
+            message: messageText,
+            deviceIds: group.deviceIds,
+          },
+        });
+        if (error || data?.error || data?.queued !== group.deviceIds.length) {
+          failures.push(...group.deviceIds);
+        } else {
+          group.deviceIds.forEach((id) => succeeded.add(id));
+        }
+      }
+
+      setSelectedDeviceIds((current) => current.filter((id) => !succeeded.has(id)));
+      if (failures.length === 0) {
+        setNoticeDraft("");
+        setMessage(`ההודעה הוכנסה לתור עבור ${succeeded.size} מכשירים שנבחרו. היא תוצג כשהאפליקציה תהיה פתוחה.`);
+      } else {
+        setMessage(`ההודעה הוכנסה לתור עבור ${succeeded.size} מכשירים. ${failures.length} מכשירים לא קיבלו אישור מהשרת; הם נשארו מסומנים לבחירה חוזרת.`);
+      }
+      await loadOverview();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "שליחת ההודעה הקבוצתית נכשלה.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function redeemChildPairing() {
     if (!supabase) return setMessage("השרת לא הוגדר בבנייה הזו.");
     const code = pairingCodeInput.replace(/\s/g, "");
@@ -556,7 +618,23 @@ export default function Home() {
                 <Text style={s.small}>סביבת המורה פעילה · חשבון: {userEmail}</Text>
                 <View style={s.divider} />
                 <View style={s.sectionHeader}><Text style={s.sectionTitle}>מכשירים וקבוצות</Text><Pressable onPress={() => void loadOverview()} disabled={loadingOverview}><Text style={s.selectAllText}>{loadingOverview ? "מרענן..." : "רענון"}</Text></Pressable></View>
-                <Text style={s.small}>{totalDevices} מכשירים רשומים · {activeDevices} פעילים</Text>
+                <Text style={s.small}>{totalDevices} מכשירים רשומים · {activeDevices} פעילים · יעד המערכת: עד 50 מכשירים</Text>
+                <View style={s.notice}>
+                  <Text style={s.noticeText}>אפשר לבחור מכשירים מכמה קבוצות ולשלוח הודעה גלויה אחת לכולם. כל מכשיר יקבל תוצאה נפרדת; הודעות נמסרות כשהאפליקציה פתוחה.</Text>
+                </View>
+                <View style={s.selectionSummary}>
+                  <Text style={s.selectionCount}>נבחרו {selectedDeviceIds.length} מתוך 50</Text>
+                  <Pressable onPress={() => setSelectedDeviceIds([])} disabled={selectedDeviceIds.length === 0}>
+                    <Text style={s.selectAllText}>נקה בחירה</Text>
+                  </Pressable>
+                </View>
+                <Field label="הודעה גלויה לכל המכשירים שנבחרו" value={noticeDraft} onChangeText={setNoticeDraft} placeholder="הודעה קצרה מהמורה" maxLength={200} />
+                <Button
+                  title={selectedDeviceIds.length ? `שליחה ל־${selectedDeviceIds.length} מכשירים מכל הקבוצות` : "בחרו מכשירים לשליחה קבוצתית"}
+                  onPress={sendNoticeToSelected}
+                  disabled={busy || !noticeDraft.trim() || selectedDeviceIds.length === 0}
+                  busy={busy}
+                />
                 {family.children.length === 0 ? <Text style={s.body}>עדיין לא נוספו מכשירים או קבוצות.</Text> : family.children.map((child) => (
                   <View key={child.id} style={s.childRow}>
                     <View style={s.childIcon}><Text style={{ color: C.mint, fontWeight: "900" }}>●</Text></View>
@@ -697,6 +775,8 @@ const s = StyleSheet.create({
   body: { color: C.muted, fontSize: 13, lineHeight: 21, textAlign: "right" },
   small: { color: C.muted, fontSize: 11, lineHeight: 18, textAlign: "right" },
   warningTitle: { color: C.amber, fontSize: 14, fontWeight: "900", textAlign: "right" },
+  selectionSummary: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line },
+  selectionCount: { color: C.mint, fontSize: 13, fontWeight: "800" },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 7 },
   sectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   childRow: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 12, backgroundColor: C.panel2, borderRadius: 13 },
